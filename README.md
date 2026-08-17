@@ -61,8 +61,10 @@ style.css       calm/minimal styling, light + dark
 js/data.js      built-in texts, speed values          ← edit content here
 js/segment.js   text → practice items                 ← edit segmentation here
 js/engine.js    state machine + timer (no DOM at all)
-js/readings.js  GENERATED hán-việt + pinyin table (10,545 characters, 237 KB)
+js/readings.js  GENERATED hán-việt + pinyin + jyutping table (10,545 chars)
 js/reading.js   readings for a text, with override table
+js/i18n.js      interface strings for the four languages
+js/speech.js    text-to-speech via the browser's own voices
 js/store.js     localStorage — resume position and settings
 js/ui.js        all DOM code
 test/unit.mjs         pure-logic + content-integrity tests, zero dependencies
@@ -136,7 +138,7 @@ the repository owner supplied and verified. Nothing was reproduced from memory.
 | 文殊菩薩祈請文 · Manjushri, 13 verses | 52 | 468 | user-supplied (YouTube `1UvewDv0X2A`) |
 | 二十一度母讚 · 21 Taras | 84 | 588 | user-supplied, 15 conversion errors corrected |
 | 楞嚴咒 · Śūraṅgama Mantra | 455 | 2,619 | user-supplied WebVTT caption track |
-| 千字文 opening / 一二三…十 | — | 30 / 10 | writing practice |
+| 千字文 opening | — | 30 | writing practice |
 
 Full sutras that were *not* supplied — the Heart Sutra, the Great Compassion
 Mantra — are deliberately **not** included, because reproducing a sacred text
@@ -201,29 +203,73 @@ done, plus resume, the overview map, the pronunciation line, deep links, and a
 390×844 mobile pass with real touch taps — including a check that ten fast taps
 on Next advance ten items and do not trigger iOS double-tap zoom.
 
-Last run on this machine: **101 unit + 128 e2e, 0 failures.**
+Last run on this machine: **123 unit + 149 e2e, 0 failures.**
+
+---
+
+## Interface languages
+
+English · Tiếng Việt · 繁體中文 · 简体中文. Picked automatically from your browser
+on first visit, changeable in the top-right, and remembered.
+
+**Only the interface is translated.** The practice texts are never translated or
+script-converted. Automatic simplified↔traditional conversion is exactly what put
+蓮花**麵** — "lotus noodles" — into 二十一度母讚, so the app will not do it to a
+sacred text.
 
 ---
 
 ## Pronunciation
 
-Turn on **Hán-Việt** and/or **Pinyin** on the home screen to show the reading
-under each item.
+Turn on **Hán-Việt**, **Pinyin** and/or **Cantonese** on the home screen to show
+the reading under each item. All three can be shown at once.
 
 | | Source | Coverage on the built-in texts |
 |---|---|---|
 | Hán-Việt | [`hanviet-pinyin-words`](https://www.npmjs.com/package/hanviet-pinyin-words) v2.1.7, MIT, © 2024 Phong Phan | 98–100% |
 | Pinyin | Unicode Unihan `kMandarin` | 100% |
+| Cantonese (Jyutping) | Unicode Unihan `kCantonese` | ~100% |
 
 The Hán-Việt table is keyed by pinyin, so polyphones resolve correctly. A
 character with no known reading shows `·` — in practice this is only 𤙖 (U+24656)
-in 楞嚴咒, which has no Hán-Việt entry in either source. Nothing is invented.
+in 楞嚴咒, which has no Hán-Việt or Cantonese entry in either source. Nothing is
+invented.
+
+### ⚠️ Hán-Việt is per character, not a liturgical transliteration
+
+This matters for mantras. The app gives the **standard Hán-Việt reading of each
+character**. Vietnamese Buddhist liturgy uses established transcriptions that
+differ systematically — and there is more than one of them: the Hán-Việt-based
+recitation, and Sanskrit-based transcriptions such as Thích Tuệ Nhuận's (Hà Nội,
+1949). For 楞嚴咒 the app produces *"nam mô tát đát tha tô già đa gia…"*, which is
+close to the traditional recitation but is not any single lineage's authorised
+text.
+
+To use a canonical version, paste it into the text box and practise from that
+directly. No transcription is generated or guessed for you.
+
+---
+
+## Read aloud
+
+Optional, using your device's own speech voices — no network, no API key, no
+audio files. The dropdown only lists languages your device actually has a voice
+for; if it has none, the app says so instead of failing silently.
+
+Two honest limits, stated in the app itself:
+
+- It reads **modern pronunciation**. A transliterated mantra like 楞嚴咒 was
+  written to carry Sanskrit sounds; a Mandarin voice reading it is a rough guide,
+  not correct recitation.
+- Voice quality and availability are entirely the device's. Cantonese (`yue-HK`)
+  and Vietnamese are common on iOS/macOS, patchy elsewhere.
 
 `js/readings.js` is generated. To rebuild it, download
 `https://www.unicode.org/Public/UCD/latest/ucd/Unihan.zip` and
-`npm pack hanviet-pinyin-words`, then merge `kMandarin` with the package's
-`hanvietData.js`, preferring a toned pinyin reading over the neutral-tone
-particle reading (this is what fixes 地 *de* → *dì*).
+`npm pack hanviet-pinyin-words`, then merge `kMandarin` and `kCantonese` with the
+package's `hanvietData.js`, preferring a toned pinyin reading over the
+neutral-tone particle reading (this is what fixes 地 *de* → *dì*). Each entry is
+`char → [hán-việt, pinyin, jyutping]`.
 
 ---
 

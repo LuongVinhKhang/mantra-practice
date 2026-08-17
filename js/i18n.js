@@ -1,0 +1,348 @@
+/* Mantra Practice — interface language.
+ *
+ * These are INTERFACE strings only. The practice texts themselves are never
+ * translated or converted: a sacred text is stored exactly as supplied, in the
+ * script it was supplied in. (Automatic simplified↔traditional conversion is
+ * precisely what put 蓮花麵 "lotus noodles" into 二十一度母讚.)
+ */
+(function (M) {
+  'use strict';
+
+  var STRINGS = {
+    en: {
+      '_name': 'English',
+      '_html': 'en',
+      'app.title': 'Mantra Practice',
+      'app.sub': 'One character, or one phrase, at a time.',
+      'lang.label': 'Language',
+      'resume.go': 'Resume',
+      'resume.clear': 'Start over',
+      'text.choose': 'Choose a text',
+      'text.label': 'Text',
+      'text.placeholder': 'Paste your text here…',
+      'group.long': 'Longer texts',
+      'group.short': 'Short invocations — set Repeat',
+      'group.practice': 'Writing practice',
+      'group.custom': 'Your own text',
+      'mode.legend': 'Practice mode',
+      'mode.writing': 'Writing',
+      'mode.writing.hint': 'one character at a time',
+      'mode.chanting': 'Speaking / Chanting',
+      'mode.chanting.hint': 'one phrase at a time',
+      'prog.legend': 'Progression',
+      'prog.auto': 'Automatic',
+      'prog.auto.hint': 'advances on a timer',
+      'prog.manual': 'Manual',
+      'prog.manual.hint': 'you press Next',
+      'read.legend': 'Pronunciation',
+      'read.hv': 'Hán-Việt',
+      'read.py': 'Pinyin',
+      'read.yue': 'Cantonese',
+      'speak.legend': 'Read aloud',
+      'speak.off': 'Off',
+      'speak.note': 'Uses your device voice. It reads modern pronunciation, not chanting.',
+      'speak.unavailable': 'Your browser has no speech voices for this language.',
+      'speed.label': 'Speed',
+      'speed.slow': 'Slow',
+      'speed.normal': 'Normal',
+      'speed.fast': 'Fast',
+      'repeat.label': 'Repeat',
+      'size.label': 'Text size',
+      'start': 'Start Practice',
+      'share': 'Copy a link to these settings',
+      'share.copied': 'Link copied.',
+      'err.empty': 'Choose a text or paste your own first.',
+      'err.punct': 'That text has no characters to practise — it looks like only punctuation or spaces.',
+      'preview.write': 'One box = one character shown on screen.',
+      'preview.chant': 'One box = one phrase shown on screen.',
+      'preview.chars': 'characters',
+      'preview.toWrite': 'to write',
+      'preview.phrases': 'phrases',
+      'preview.phrase': 'phrase',
+      'preview.character': 'character',
+      'preview.toChant': 'to chant',
+      'preview.items': 'items',
+      'btn.pause': 'Pause',
+      'btn.resume': 'Resume',
+      'btn.restart': 'Restart',
+      'btn.exit': 'Exit',
+      'counter.title': 'Show the whole text (O)',
+      'done.title': 'Practice complete',
+      'done.sub': 'Great job.',
+      'done.again': 'Practice Again',
+      'done.home': 'Back to Home',
+      'confirm.msg': 'Selecting this text will replace your current text.',
+      'confirm.cancel': 'Cancel',
+      'confirm.replace': 'Replace text',
+      'ov.close': 'Close',
+      'ov.hint': 'Tap any item to jump to it.',
+      'ov.items': 'items'
+    },
+
+    vi: {
+      '_name': 'Tiếng Việt',
+      '_html': 'vi',
+      'app.title': 'Tụng niệm',
+      'app.sub': 'Mỗi lần một chữ, hoặc một câu.',
+      'lang.label': 'Ngôn ngữ',
+      'resume.go': 'Tiếp tục',
+      'resume.clear': 'Bắt đầu lại',
+      'text.choose': 'Chọn bài',
+      'text.label': 'Văn bản',
+      'text.placeholder': 'Dán văn bản của bạn vào đây…',
+      'group.long': 'Bài dài',
+      'group.short': 'Câu niệm ngắn — đặt số lần lặp',
+      'group.practice': 'Luyện viết',
+      'group.custom': 'Văn bản của bạn',
+      'mode.legend': 'Cách luyện tập',
+      'mode.writing': 'Viết',
+      'mode.writing.hint': 'mỗi lần một chữ',
+      'mode.chanting': 'Đọc / Tụng',
+      'mode.chanting.hint': 'mỗi lần một câu',
+      'prog.legend': 'Chuyển tiếp',
+      'prog.auto': 'Tự động',
+      'prog.auto.hint': 'chuyển theo thời gian',
+      'prog.manual': 'Thủ công',
+      'prog.manual.hint': 'bạn tự bấm Tiếp',
+      'read.legend': 'Phiên âm',
+      'read.hv': 'Hán-Việt',
+      'read.py': 'Bính âm',
+      'read.yue': 'Tiếng Quảng Đông',
+      'speak.legend': 'Đọc thành tiếng',
+      'speak.off': 'Tắt',
+      'speak.note': 'Dùng giọng đọc của máy. Đây là cách đọc hiện đại, không phải giọng tụng.',
+      'speak.unavailable': 'Trình duyệt của bạn không có giọng đọc cho ngôn ngữ này.',
+      'speed.label': 'Tốc độ',
+      'speed.slow': 'Chậm',
+      'speed.normal': 'Vừa',
+      'speed.fast': 'Nhanh',
+      'repeat.label': 'Số lần lặp',
+      'size.label': 'Cỡ chữ',
+      'start': 'Bắt đầu',
+      'share': 'Sao chép liên kết với thiết lập này',
+      'share.copied': 'Đã sao chép liên kết.',
+      'err.empty': 'Hãy chọn một bài hoặc dán văn bản của bạn.',
+      'err.punct': 'Văn bản này không có chữ nào để luyện — có vẻ chỉ toàn dấu câu hoặc khoảng trắng.',
+      'preview.write': 'Mỗi ô = một chữ hiện trên màn hình.',
+      'preview.chant': 'Mỗi ô = một câu hiện trên màn hình.',
+      'preview.chars': 'chữ',
+      'preview.toWrite': 'để viết',
+      'preview.phrases': 'câu',
+      'preview.phrase': 'câu',
+      'preview.character': 'chữ',
+      'preview.toChant': 'để tụng',
+      'preview.items': 'mục',
+      'btn.pause': 'Tạm dừng',
+      'btn.resume': 'Tiếp tục',
+      'btn.restart': 'Làm lại',
+      'btn.exit': 'Thoát',
+      'counter.title': 'Xem toàn bộ văn bản (O)',
+      'done.title': 'Đã tụng xong',
+      'done.sub': 'Rất tốt.',
+      'done.again': 'Tụng lại',
+      'done.home': 'Về trang chính',
+      'confirm.msg': 'Chọn bài này sẽ thay thế văn bản hiện tại của bạn.',
+      'confirm.cancel': 'Huỷ',
+      'confirm.replace': 'Thay thế',
+      'ov.close': 'Đóng',
+      'ov.hint': 'Chạm vào một mục để nhảy tới đó.',
+      'ov.items': 'mục'
+    },
+
+    'zh-Hant': {
+      '_name': '繁體中文',
+      '_html': 'zh-Hant',
+      'app.title': '持誦練習',
+      'app.sub': '一次一個字，或一句。',
+      'lang.label': '語言',
+      'resume.go': '繼續',
+      'resume.clear': '重新開始',
+      'text.choose': '選擇文本',
+      'text.label': '文本',
+      'text.placeholder': '在此貼上您的文字…',
+      'group.long': '長篇',
+      'group.short': '短句聖號 — 請設定重複次數',
+      'group.practice': '書寫練習',
+      'group.custom': '自訂文字',
+      'mode.legend': '練習方式',
+      'mode.writing': '書寫',
+      'mode.writing.hint': '一次一個字',
+      'mode.chanting': '念誦 / 持咒',
+      'mode.chanting.hint': '一次一句',
+      'prog.legend': '前進方式',
+      'prog.auto': '自動',
+      'prog.auto.hint': '依計時自動前進',
+      'prog.manual': '手動',
+      'prog.manual.hint': '由您按下一個',
+      'read.legend': '注音',
+      'read.hv': '漢越音',
+      'read.py': '拼音',
+      'read.yue': '粵語',
+      'speak.legend': '朗讀',
+      'speak.off': '關閉',
+      'speak.note': '使用裝置語音。讀的是現代語音，並非唱誦。',
+      'speak.unavailable': '您的瀏覽器沒有此語言的語音。',
+      'speed.label': '速度',
+      'speed.slow': '慢',
+      'speed.normal': '中',
+      'speed.fast': '快',
+      'repeat.label': '重複',
+      'size.label': '字級',
+      'start': '開始練習',
+      'share': '複製這些設定的連結',
+      'share.copied': '連結已複製。',
+      'err.empty': '請先選擇文本或貼上您的文字。',
+      'err.punct': '這段文字沒有可練習的字，似乎只有標點或空白。',
+      'preview.write': '每格 = 螢幕上顯示的一個字。',
+      'preview.chant': '每格 = 螢幕上顯示的一句。',
+      'preview.chars': '字',
+      'preview.toWrite': '待書寫',
+      'preview.phrases': '句',
+      'preview.phrase': '句',
+      'preview.character': '字',
+      'preview.toChant': '待念誦',
+      'preview.items': '項',
+      'btn.pause': '暫停',
+      'btn.resume': '繼續',
+      'btn.restart': '重來',
+      'btn.exit': '離開',
+      'counter.title': '顯示全文（O）',
+      'done.title': '練習完成',
+      'done.sub': '很好。',
+      'done.again': '再練一次',
+      'done.home': '回首頁',
+      'confirm.msg': '選擇此文本將取代您目前的文字。',
+      'confirm.cancel': '取消',
+      'confirm.replace': '取代',
+      'ov.close': '關閉',
+      'ov.hint': '點任一項即可跳至該處。',
+      'ov.items': '項'
+    },
+
+    'zh-Hans': {
+      '_name': '简体中文',
+      '_html': 'zh-Hans',
+      'app.title': '持诵练习',
+      'app.sub': '一次一个字，或一句。',
+      'lang.label': '语言',
+      'resume.go': '继续',
+      'resume.clear': '重新开始',
+      'text.choose': '选择文本',
+      'text.label': '文本',
+      'text.placeholder': '在此粘贴您的文字…',
+      'group.long': '长篇',
+      'group.short': '短句圣号 — 请设定重复次数',
+      'group.practice': '书写练习',
+      'group.custom': '自定文字',
+      'mode.legend': '练习方式',
+      'mode.writing': '书写',
+      'mode.writing.hint': '一次一个字',
+      'mode.chanting': '念诵 / 持咒',
+      'mode.chanting.hint': '一次一句',
+      'prog.legend': '前进方式',
+      'prog.auto': '自动',
+      'prog.auto.hint': '按计时自动前进',
+      'prog.manual': '手动',
+      'prog.manual.hint': '由您按下一个',
+      'read.legend': '注音',
+      'read.hv': '汉越音',
+      'read.py': '拼音',
+      'read.yue': '粤语',
+      'speak.legend': '朗读',
+      'speak.off': '关闭',
+      'speak.note': '使用设备语音。读的是现代语音，并非唱诵。',
+      'speak.unavailable': '您的浏览器没有此语言的语音。',
+      'speed.label': '速度',
+      'speed.slow': '慢',
+      'speed.normal': '中',
+      'speed.fast': '快',
+      'repeat.label': '重复',
+      'size.label': '字号',
+      'start': '开始练习',
+      'share': '复制这些设置的链接',
+      'share.copied': '链接已复制。',
+      'err.empty': '请先选择文本或粘贴您的文字。',
+      'err.punct': '这段文字没有可练习的字，似乎只有标点或空白。',
+      'preview.write': '每格 = 屏幕上显示的一个字。',
+      'preview.chant': '每格 = 屏幕上显示的一句。',
+      'preview.chars': '字',
+      'preview.toWrite': '待书写',
+      'preview.phrases': '句',
+      'preview.phrase': '句',
+      'preview.character': '字',
+      'preview.toChant': '待念诵',
+      'preview.items': '项',
+      'btn.pause': '暂停',
+      'btn.resume': '继续',
+      'btn.restart': '重来',
+      'btn.exit': '退出',
+      'counter.title': '显示全文（O）',
+      'done.title': '练习完成',
+      'done.sub': '很好。',
+      'done.again': '再练一次',
+      'done.home': '回首页',
+      'confirm.msg': '选择此文本将替换您当前的文字。',
+      'confirm.cancel': '取消',
+      'confirm.replace': '替换',
+      'ov.close': '关闭',
+      'ov.hint': '点任一项即可跳至该处。',
+      'ov.items': '项'
+    }
+  };
+
+  var ORDER = ['en', 'vi', 'zh-Hant', 'zh-Hans'];
+  var current = 'en';
+
+  function detect() {
+    var langs = navigator.languages || [navigator.language || 'en'];
+    for (var i = 0; i < langs.length; i++) {
+      var l = String(langs[i] || '').toLowerCase();
+      if (l.indexOf('vi') === 0) return 'vi';
+      if (l.indexOf('zh') === 0) {
+        return (l.indexOf('hant') > -1 || l.indexOf('tw') > -1 ||
+                l.indexOf('hk') > -1 || l.indexOf('mo') > -1) ? 'zh-Hant' : 'zh-Hans';
+      }
+      if (l.indexOf('en') === 0) return 'en';
+    }
+    return 'en';
+  }
+
+  function t(key) {
+    var table = STRINGS[current] || STRINGS.en;
+    return (key in table) ? table[key] : (STRINGS.en[key] || key);
+  }
+
+  function set(lang) {
+    current = STRINGS[lang] ? lang : 'en';
+    document.documentElement.setAttribute('lang', t('_html'));
+    return current;
+  }
+
+  /* Rewrites every element carrying a data-i18n* attribute. */
+  function apply() {
+    var map = [
+      ['data-i18n',          function (n, v) { n.textContent = v; }],
+      ['data-i18n-ph',       function (n, v) { n.setAttribute('placeholder', v); }],
+      ['data-i18n-title',    function (n, v) { n.setAttribute('title', v); }],
+      ['data-i18n-label',    function (n, v) { n.setAttribute('aria-label', v); }]
+    ];
+    map.forEach(function (pair) {
+      var nodes = document.querySelectorAll('[' + pair[0] + ']');
+      Array.prototype.forEach.call(nodes, function (n) {
+        pair[1](n, t(n.getAttribute(pair[0])));
+      });
+    });
+    document.title = t('app.title');
+  }
+
+  M.i18n = {
+    t: t,
+    set: set,
+    apply: apply,
+    detect: detect,
+    order: ORDER,
+    name: function (l) { return (STRINGS[l] || {})._name || l; },
+    current: function () { return current; }
+  };
+
+})(window.Mantra = window.Mantra || {});

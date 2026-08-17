@@ -14,6 +14,7 @@ window.Mantra = window.Mantra || {};
 window.Mantra.TEXTS = [
   {
     id: 'custom',
+    group: 'custom',
     name: 'My own text',
     language: '',
     type: 'custom',
@@ -21,6 +22,7 @@ window.Mantra.TEXTS = [
   },
   {
     id: 'guanyin',
+    group: 'short',
     name: '南無觀世音菩薩 · Guanyin',
     language: 'zh',
     type: 'invocation',
@@ -28,6 +30,7 @@ window.Mantra.TEXTS = [
   },
   {
     id: 'amitabha',
+    group: 'short',
     name: '南無阿彌陀佛 · Amitabha',
     language: 'zh',
     type: 'invocation',
@@ -35,6 +38,7 @@ window.Mantra.TEXTS = [
   },
   {
     id: 'shakyamuni',
+    group: 'short',
     name: '南無本師釋迦牟尼佛 · Shakyamuni',
     language: 'zh',
     type: 'invocation',
@@ -42,6 +46,7 @@ window.Mantra.TEXTS = [
   },
   {
     id: 'sixsyllable',
+    group: 'short',
     name: '唵嘛呢叭咪吽 · Six syllables',
     language: 'zh',
     type: 'invocation',
@@ -49,6 +54,7 @@ window.Mantra.TEXTS = [
   },
   {
     id: 'manjushri',
+    group: 'long',
     name: '文殊菩薩祈請文 · Manjushri (13 verses)',
     language: 'zh',
     type: 'prayer',
@@ -60,6 +66,7 @@ window.Mantra.TEXTS = [
   },
   {
     id: 'tara21',
+    group: 'long',
     name: '二十一度母讚 · 21 Taras',
     language: 'zh',
     type: 'praise',
@@ -82,6 +89,7 @@ window.Mantra.TEXTS = [
   },
   {
     id: 'shurangama',
+    group: 'long',
     name: '楞嚴咒 · Śūraṅgama Mantra',
     language: 'zh',
     type: 'mantra',
@@ -95,18 +103,12 @@ window.Mantra.TEXTS = [
   },
   {
     id: 'qzw',
+    group: 'practice',
     name: '千字文 · opening lines',
     language: 'zh',
     type: 'classic',
     text: '天地玄黃，宇宙洪荒。日月盈昃，辰宿列張。寒來暑往，秋收冬藏。'
   },
-  {
-    id: 'digits',
-    name: '一二三…十 · simple strokes',
-    language: 'zh',
-    type: 'practice',
-    text: '一二三四五六七八九十'
-  }
 ];
 
 /* Milliseconds per item. Deliberately hardcoded and experimental —

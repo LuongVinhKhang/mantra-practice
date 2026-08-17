@@ -11,11 +11,15 @@ import vm from 'node:vm';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Minimal browser-ish sandbox: the source files only need `window` + timers.
-const sandbox = { window: {}, setTimeout, clearTimeout, console };
+const sandbox = { window: {}, setTimeout, clearTimeout, console,
+                  navigator: { languages: ['en-US'] },
+                  document: { documentElement: { setAttribute() {} },
+                              querySelectorAll: () => [] } };
 sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
 for (const f of ['js/data.js', 'js/segment.js', 'js/engine.js',
-                 'js/readings.js', 'js/reading.js', 'js/store.js']) {
+                 'js/readings.js', 'js/reading.js', 'js/store.js',
+                 'js/i18n.js', 'js/speech.js']) {
   vm.runInContext(readFileSync(join(root, f), 'utf8'), sandbox, { filename: f });
 }
 const M = sandbox.window.Mantra;
@@ -34,6 +38,13 @@ eq('first entry is the custom slot',
   [M.TEXTS[0].id, M.TEXTS[0].text], ['custom', '']);
 eq('no display label leaked into a text body',
   M.TEXTS.filter(t => /[·A-Za-z]/.test(t.text)).map(t => t.id), []);
+eq('filler text 一二三…十 removed',
+  M.TEXTS.filter(t => t.id === 'digits').length, 0);
+eq('every text has a dropdown group',
+  M.TEXTS.filter(t => !t.group).map(t => t.id), []);
+eq('groups are known',
+  [...new Set(M.TEXTS.map(t => t.group))].filter(
+    g => !['long','short','practice','custom'].includes(g)), []);
 eq('every non-custom text yields items',
   M.TEXTS.slice(1).filter(t => M.segmentWriting(t.text).length === 0).map(t => t.id), []);
 eq('every mode has all three speeds',
@@ -260,6 +271,62 @@ console.log('\nStore — degrades without localStorage');
   eq('available() is false here', M.store.available(), false);
   eq('write does not throw', M.store.write({ a: 1 }), false);
   eq('patch does not throw', typeof M.store.patch({ a: 1 }), 'object');
+}
+
+console.log('\nCantonese readings');
+{
+  eq('三 systems per entry', M.READINGS['南'].length, 3);
+  eq('cantonese jyutping',
+     M.reading('南無觀世音菩薩', 2), 'naam4 mou4 gun1 sai3 jam1 pou4 saat3');
+  eq('cantonese six-syllable',
+     M.reading('唵嘛呢叭咪吽', 2), 'am2 maa1 nai4 baa1 mai5 ngau4');
+  const t = M.TEXTS.find(x => x.id === 'shurangama');
+  const miss = M.segmentWriting(t.text).filter(c => !(M.READINGS[c] || [])[2]);
+  eq('楞嚴咒 cantonese gaps are only 𤙖', [...new Set(miss)], ['\u{24656}']);
+  eq('hán-việt unchanged by the cantonese rebuild',
+     M.reading('南無阿彌陀佛', 0), 'nam mô a di đà phật');
+}
+
+console.log('\nInterface languages');
+{
+  eq('four languages', M.i18n.order, ['en', 'vi', 'zh-Hant', 'zh-Hans']);
+  const keys = Object.keys(
+    JSON.parse(JSON.stringify(Object.fromEntries(
+      M.i18n.order.map(l => { M.i18n.set(l); return [l, 0]; })))));
+  eq('all four selectable', keys.length, 4);
+  M.i18n.set('en');
+  eq('english start', M.i18n.t('start'), 'Start Practice');
+  M.i18n.set('vi');
+  eq('vietnamese start', M.i18n.t('start'), 'Bắt đầu');
+  eq('vietnamese mode', M.i18n.t('mode.chanting'), 'Đọc / Tụng');
+  M.i18n.set('zh-Hant');
+  eq('traditional chinese start', M.i18n.t('start'), '開始練習');
+  M.i18n.set('zh-Hans');
+  eq('simplified chinese start', M.i18n.t('start'), '开始练习');
+  eq('unknown language falls back to english',
+     (M.i18n.set('xx'), M.i18n.current()), 'en');
+  eq('unknown key returns the key', M.i18n.t('no.such.key'), 'no.such.key');
+}
+
+console.log('\nInterface language completeness');
+{
+  M.i18n.set('en');
+  // Every language must define every key the English table defines.
+  const probe = k => M.i18n.order.map(l => { M.i18n.set(l); return M.i18n.t(k); });
+  const KEYS = ['app.title','start','btn.pause','done.title','confirm.msg',
+                'ov.hint','read.yue','speak.legend','group.long','group.short',
+                'err.empty','preview.write','size.label','repeat.label'];
+  const untranslated = KEYS.filter(k => new Set(probe(k)).size !== 4);
+  eq('no key is left identical across all four languages', untranslated, []);
+  M.i18n.set('en');
+}
+
+console.log('\nSpeech degrades without speechSynthesis');
+{
+  eq('supported() is false in node', M.speech.supported(), false);
+  eq('available() is empty', M.speech.available(), []);
+  eq('speak() returns false, does not throw', M.speech.speak('南', 'zh-TW'), false);
+  eq('cancel() does not throw', (M.speech.cancel(), true), true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

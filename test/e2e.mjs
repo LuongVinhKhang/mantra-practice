@@ -26,8 +26,13 @@ await page.waitForTimeout(200);
 
 console.log('\nDoD 1–2: open site, select a built-in text (over file://)');
 check('no JS/console errors on load', errors.length === 0, errors.join(' | '));
-check('dropdown populated', (await page.locator('#text-select option').count()) === 10,
+check('dropdown populated', (await page.locator('#text-select option').count()) === 9,
   String(await page.locator('#text-select option').count()));
+check('dropdown is grouped',
+  (await page.locator('#text-select optgroup').count()) === 4,
+  String(await page.locator('#text-select optgroup').count()));
+check('filler 一二三…十 is gone',
+  (await page.locator('#text-select option[value="digits"]').count()) === 0);
 await page.selectOption('#text-select', 'guanyin');
 check('built-in loads into textarea',
   (await page.inputValue('#text-input')) === '南無觀世音菩薩');
@@ -410,6 +415,90 @@ await page.waitForTimeout(200);
 await page.uncheck('#opt-hv');
 await page.uncheck('#opt-py');
 await page.fill('#repeat-input', '1');
+
+console.log('\nInterface language');
+await page.goto(APP);
+await page.waitForTimeout(300);
+check('language selector has 4 options',
+  (await page.locator('#lang-select option').count()) === 4);
+check('starts in English', (await page.textContent('#start-btn')) === 'Start Practice');
+await page.selectOption('#lang-select', 'vi');
+check('vietnamese start button', (await page.textContent('#start-btn')) === 'Bắt đầu',
+  await page.textContent('#start-btn'));
+check('vietnamese mode label',
+  /Đọc \/ Tụng/.test(await page.textContent('#screen-home')));
+check('html lang attribute follows',
+  (await page.getAttribute('html', 'lang')) === 'vi');
+check('optgroup labels translated',
+  (await page.locator('#text-select optgroup').first().getAttribute('label')) === 'Bài dài',
+  await page.locator('#text-select optgroup').first().getAttribute('label'));
+await page.selectOption('#lang-select', 'zh-Hant');
+check('traditional chinese', (await page.textContent('#start-btn')) === '開始練習');
+await page.selectOption('#lang-select', 'zh-Hans');
+check('simplified chinese', (await page.textContent('#start-btn')) === '开始练习');
+check('document title follows language',
+  (await page.title()) === '持诵练习', await page.title());
+await page.reload();
+await page.waitForTimeout(300);
+check('language persists across reload',
+  (await page.inputValue('#lang-select')) === 'zh-Hans');
+// in-practice strings translate too
+await page.selectOption('#text-select', 'guanyin');
+await page.click('#confirm-replace').catch(() => {});
+await page.check('input[name="prog"][value="auto"]');
+await page.click('#start-btn');
+check('pause button translated', (await page.textContent('#btn-toggle')) === '暂停',
+  await page.textContent('#btn-toggle'));
+await page.click('#btn-toggle');
+check('resume button translated', (await page.textContent('#btn-toggle')) === '继续');
+await page.click('#counter');
+check('overview hint translated',
+  /点任一项/.test(await page.textContent('.ov-hint')));
+await page.keyboard.press('Escape');
+await page.click('#btn-exit');
+await page.click('#resume-clear').catch(() => {});
+await page.selectOption('#lang-select', 'en');
+
+console.log('\nCantonese reading line');
+await page.selectOption('#text-select', 'guanyin');
+await page.click('#confirm-replace').catch(() => {});
+await page.check('input[name="mode"][value="chanting"]');
+await page.check('input[name="prog"][value="manual"]');
+await page.check('#opt-yue');
+await page.click('#start-btn');
+check('cantonese line shown',
+  (await page.textContent('#reading-yue')) === 'naam4 mou4 gun1 sai3 jam1 pou4 saat3',
+  await page.textContent('#reading-yue'));
+await page.click('#btn-exit');
+await page.check('#opt-hv');
+await page.check('#opt-py');
+await page.click('#start-btn');
+check('all three reading lines can show at once',
+  (await page.locator('#reading-hv').isVisible()) &&
+  (await page.locator('#reading-py').isVisible()) &&
+  (await page.locator('#reading-yue').isVisible()));
+await page.click('#btn-exit');
+await page.uncheck('#opt-hv');
+await page.uncheck('#opt-py');
+await page.uncheck('#opt-yue');
+await page.click('#resume-clear').catch(() => {});
+
+console.log('\nRead aloud degrades honestly');
+const sp = await page.evaluate(() => ({
+  supported: window.Mantra.speech.supported(),
+  langs: window.Mantra.speech.available(),
+  fieldHidden: document.getElementById('speak-field').hidden,
+  speakBtnHidden: document.getElementById('btn-speak').hidden,
+  note: document.getElementById('speak-note').textContent
+}));
+check('speech field hidden when unsupported, shown when supported',
+  sp.fieldHidden === !sp.supported, JSON.stringify(sp));
+check('speak button hidden while voice is Off', sp.speakBtnHidden === true);
+check('only real voices are offered',
+  (await page.locator('#speak-select option').count()) === sp.langs.length + 1,
+  `${await page.locator('#speak-select option').count()} vs ${sp.langs.length}+1`);
+check('honest note when no voices exist',
+  sp.langs.length > 0 || /no speech voices/i.test(sp.note), sp.note);
 
 console.log('\nProgress bar');
 await page.fill('#text-input', '天地玄黃，宇宙洪荒。日月盈昃，辰宿列張。');

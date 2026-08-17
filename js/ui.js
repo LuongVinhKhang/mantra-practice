@@ -28,6 +28,12 @@
     repeat:    $('repeat-input'),
     optHv:     $('opt-hv'),
     optPy:     $('opt-py'),
+    optYue:    $('opt-yue'),
+    lang:      $('lang-select'),
+    speakField:$('speak-field'),
+    speak:     $('speak-select'),
+    speakNote: $('speak-note'),
+    btnSpeak:  $('btn-speak'),
     sizeDown:  $('size-down'),
     sizeUp:    $('size-up'),
     sizeVal:   $('size-val'),
@@ -40,6 +46,7 @@
     item:      $('item'),
     readHv:    $('reading-hv'),
     readPy:    $('reading-py'),
+    readYue:   $('reading-yue'),
     counter:   $('counter'),
     counterTxt:$('counter-text'),
     fill:      $('bar-fill'),
@@ -104,7 +111,11 @@
     return el.input.value.trim() !== '' && el.input.value !== state.loadedSnapshot;
   }
 
-  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+  /* English needs singular/plural; Vietnamese and Chinese do not mark number,
+   * so both keys hold the same word there and this is a no-op for them. */
+  function unit(n, singularKey, pluralKey) {
+    return n + ' ' + M.i18n.t(n === 1 ? singularKey : pluralKey);
+  }
 
   /* ── preferences ───────────────────────────────────────────────── */
 
@@ -117,6 +128,9 @@
       repeat: clampRepeat(el.repeat.value),
       hv: el.optHv.checked,
       py: el.optPy.checked,
+      yue: el.optYue.checked,
+      lang: M.i18n.current(),
+      speak: el.speak.value,
       scale: state.scale
     };
   }
@@ -137,6 +151,8 @@
     if (p.repeat) el.repeat.value = clampRepeat(p.repeat);
     el.optHv.checked = !!p.hv;
     el.optPy.checked = !!p.py;
+    el.optYue.checked = !!p.yue;
+    if (p.speak && hasSpeakOption(p.speak)) el.speak.value = p.speak;
     if (p.scale) setScale(p.scale, true);
   }
 
@@ -151,14 +167,25 @@
 
   /* ── home screen ───────────────────────────────────────────────── */
 
+  var GROUP_ORDER = ['long', 'short', 'practice', 'custom'];
+
   function buildSelect() {
-    M.TEXTS.forEach(function (t) {
-      var o = document.createElement('option');
-      o.value = t.id;
-      o.textContent = t.name;
-      el.select.appendChild(o);
+    var keep = el.select.value;
+    el.select.textContent = '';
+    GROUP_ORDER.forEach(function (g) {
+      var members = M.TEXTS.filter(function (t) { return (t.group || 'custom') === g; });
+      if (!members.length) return;
+      var grp = document.createElement('optgroup');
+      grp.label = M.i18n.t('group.' + g);
+      members.forEach(function (t) {
+        var o = document.createElement('option');
+        o.value = t.id;
+        o.textContent = t.name;
+        grp.appendChild(o);
+      });
+      el.select.appendChild(grp);
     });
-    el.select.value = 'custom';
+    el.select.value = keep && textById(keep) ? keep : 'custom';
   }
 
   function loadText(id) {
@@ -202,15 +229,21 @@
     var reps = clampRepeat(el.repeat.value);
     var line;
 
+    var T = M.i18n.t;
     if (mode === 'writing') {
       /* Count content characters only — line breaks and punctuation are not
        * things you write, so counting them would overstate the session. */
-      line = plural(items.length, 'character') + ' to write';
+      line = unit(items.length, 'preview.character', 'preview.chars') +
+             ' ' + T('preview.toWrite');
     } else {
-      line = plural(M.segmentWriting(raw).length, 'character') + ' · ' +
-             plural(items.length, 'phrase') + ' to chant';
+      line = unit(M.segmentWriting(raw).length, 'preview.character', 'preview.chars') +
+             ' · ' +
+             unit(items.length, 'preview.phrase', 'preview.phrases') +
+             ' ' + T('preview.toChant');
     }
-    if (reps > 1) line += ' × ' + reps + ' = ' + (items.length * reps) + ' items';
+    if (reps > 1) {
+      line += ' × ' + reps + ' = ' + (items.length * reps) + ' ' + T('preview.items');
+    }
     el.meta.textContent = line;
 
     /* Show the first few items exactly as the practice screen will show them.
@@ -233,9 +266,8 @@
     el.previewItems.textContent = '';
     el.previewItems.appendChild(frag);
 
-    el.previewHint.textContent = mode === 'writing'
-      ? 'One box = one character shown on screen.'
-      : 'One box = one phrase shown on screen.';
+    el.previewHint.textContent = M.i18n.t(
+      mode === 'writing' ? 'preview.write' : 'preview.chant');
   }
 
   /* Speed only means something when the app is advancing on a timer.
@@ -313,15 +345,18 @@
 
   function renderReadings(index) {
     var s = state.session;
-    el.readHv.hidden = !(s && s.rHv);
-    el.readPy.hidden = !(s && s.rPy);
-    if (s && s.rHv) el.readHv.textContent = sliceReading(s.rHv, index);
-    if (s && s.rPy) el.readPy.textContent = sliceReading(s.rPy, index);
+    el.readHv.hidden  = !(s && s.rHv);
+    el.readPy.hidden  = !(s && s.rPy);
+    el.readYue.hidden = !(s && s.rYue);
+    if (s && s.rHv)  el.readHv.textContent  = sliceReading(s.rHv, index);
+    if (s && s.rPy)  el.readPy.textContent  = sliceReading(s.rPy, index);
+    if (s && s.rYue) el.readYue.textContent = sliceReading(s.rYue, index);
   }
 
   function render(s) {
     if (s.finished) {
       M.store.clearSession();
+      M.speech.cancel();
       releaseWake();
       show(el.done);
       return;
@@ -335,7 +370,7 @@
 
     if (s.auto) {
       el.toggle.hidden = false;
-      el.toggle.textContent = s.playing ? 'Pause' : 'Resume';
+      el.toggle.textContent = M.i18n.t(s.playing ? 'btn.pause' : 'btn.resume');
       el.stage.classList.toggle('is-paused', !s.playing);
     } else {
       el.toggle.hidden = true;
@@ -343,6 +378,7 @@
     }
 
     saveSession(s.index);
+    speakCurrent();
   }
 
   function saveSession(index) {
@@ -406,8 +442,9 @@
       items: M.repeat(base, reps),
       offsets: offsets,
       lineGroups: lineGroups,
-      rHv: el.optHv.checked ? M.readingArray(raw, 0) : null,
-      rPy: el.optPy.checked ? M.readingArray(raw, 1) : null,
+      rHv:  el.optHv.checked  ? M.readingArray(raw, 0) : null,
+      rPy:  el.optPy.checked  ? M.readingArray(raw, 1) : null,
+      rYue: el.optYue.checked ? M.readingArray(raw, 2) : null,
       text: raw,
       textId: el.select.value,
       name: (t && el.select.value !== 'custom') ? t.name : 'My own text',
@@ -422,9 +459,7 @@
   el.start.addEventListener('click', function () {
     var session = buildSession();
     if (!session) {
-      setError(el.input.value.trim()
-        ? 'That text has no characters to practise — it looks like only punctuation or spaces.'
-        : 'Choose a text or paste your own first.');
+      setError(M.i18n.t(el.input.value.trim() ? 'err.punct' : 'err.empty'));
       return;
     }
     setError('');
@@ -434,6 +469,7 @@
   });
 
   function exitPractice() {
+    M.speech.cancel();
     if (state.engine) {
       saveSession(state.engine.index);
       state.engine.destroy();
@@ -467,7 +503,8 @@
     var items = state.engine.items;
     var cur = state.engine.index;
 
-    el.ovTitle.textContent = state.session.name + ' · ' + items.length + ' items';
+    el.ovTitle.textContent = state.session.name + ' · ' + items.length +
+                             ' ' + M.i18n.t('ov.items');
 
     /* One row per line of the source text. Packing everything into one
      * uniform block loses the verse structure and is unreadable — 二十一度母讚
@@ -535,7 +572,7 @@
       return;
     }
     el.resumeText.textContent = s.name + ' · ' +
-      (s.mode === 'writing' ? 'writing' : 'chanting') + ' · ' +
+      M.i18n.t(s.mode === 'writing' ? 'mode.writing' : 'mode.chanting') + ' · ' +
       (s.index + 1) + ' / ' + s.total;
     el.resumeBox.hidden = false;
   }
@@ -602,6 +639,8 @@
              's=' + p.speed, 'r=' + p.repeat];
     if (p.hv) q.push('hv=1');
     if (p.py) q.push('py=1');
+    if (p.yue) q.push('yue=1');
+    q.push('l=' + p.lang);
     return location.origin + location.pathname + '#' + q.join('&');
   }
 
@@ -614,9 +653,10 @@
       if (i > 0) q[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
     });
     if (!q.t) return false;
+    if (q.l) setLang(q.l, true);
     applyPrefs({
       mode: q.m, prog: q.p, speed: q.s, repeat: q.r,
-      hv: q.hv === '1', py: q.py === '1'
+      hv: q.hv === '1', py: q.py === '1', yue: q.yue === '1'
     });
     loadText(textById(q.t) ? q.t : 'custom');
     syncSpeedField();
@@ -636,7 +676,7 @@
     var url = shareUrl();
     var done = function (ok) {
       el.shareNote.hidden = false;
-      el.shareNote.textContent = ok ? 'Link copied.' : url;
+      el.shareNote.textContent = ok ? M.i18n.t('share.copied') : url;
     };
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -691,6 +731,7 @@
   el.speed.addEventListener('change', savePrefs);
   el.optHv.addEventListener('change', savePrefs);
   el.optPy.addEventListener('change', savePrefs);
+  el.optYue.addEventListener('change', savePrefs);
   el.sizeUp.addEventListener('click', function () { setScale(state.scale + SCALE_STEP); });
   el.sizeDown.addEventListener('click', function () { setScale(state.scale - SCALE_STEP); });
 
@@ -703,13 +744,115 @@
     function (r) { r.addEventListener('change', function () { syncSpeedField(); savePrefs(); }); }
   );
 
+  /* ── language ──────────────────────────────────────────────────── */
+
+  function buildLangSelect() {
+    el.lang.textContent = '';
+    M.i18n.order.forEach(function (code) {
+      var o = document.createElement('option');
+      o.value = code;
+      o.textContent = M.i18n.name(code);
+      el.lang.appendChild(o);
+    });
+  }
+
+  function setLang(code, silent) {
+    M.i18n.set(code);
+    el.lang.value = M.i18n.current();
+    M.i18n.apply();
+    buildSelect();          // optgroup labels are translated
+    buildSpeakSelect();
+    updateMeta();
+    showResume();
+    if (state.engine && !state.engine.finished) render({
+      item: state.engine.items[state.engine.index],
+      index: state.engine.index,
+      total: state.engine.items.length,
+      playing: state.engine.playing,
+      finished: false,
+      auto: state.engine.auto
+    });
+    if (!silent) savePrefs();
+  }
+
+  el.lang.addEventListener('change', function () { setLang(el.lang.value); });
+
+  /* ── speech ────────────────────────────────────────────────────── */
+
+  function hasSpeakOption(v) {
+    for (var i = 0; i < el.speak.options.length; i++) {
+      if (el.speak.options[i].value === v) return true;
+    }
+    return false;
+  }
+
+  var SPEAK_NAMES = {
+    'zh-TW': '國語 Mandarin (TW)', 'zh-CN': '普通话 Mandarin (CN)',
+    'yue-HK': '粵語 Cantonese', 'vi-VN': 'Tiếng Việt', 'en-US': 'English'
+  };
+
+  /* Only list languages this device actually has a voice for — offering a
+   * voice that silently does nothing is worse than not offering it. */
+  function buildSpeakSelect() {
+    var keep = el.speak.value;
+    var langs = M.speech.available();
+    el.speak.textContent = '';
+
+    var off = document.createElement('option');
+    off.value = 'off';
+    off.textContent = M.i18n.t('speak.off');
+    el.speak.appendChild(off);
+
+    langs.forEach(function (id) {
+      var o = document.createElement('option');
+      o.value = id;
+      o.textContent = SPEAK_NAMES[id] || id;
+      el.speak.appendChild(o);
+    });
+
+    el.speakField.hidden = !M.speech.supported();
+    el.speakNote.textContent = M.i18n.t(langs.length ? 'speak.note' : 'speak.unavailable');
+    el.speak.value = hasSpeakOption(keep) ? keep : 'off';
+  }
+
+  function speakCurrent() {
+    if (!state.engine || state.engine.finished) return;
+    var lang = el.speak.value;
+    if (!lang || lang === 'off') return;
+    M.speech.speak(state.engine.items[state.engine.index], lang);
+  }
+
+  el.speak.addEventListener('change', function () {
+    M.speech.cancel();
+    savePrefs();
+    syncSpeakButton();
+  });
+
+  function syncSpeakButton() {
+    var on = M.speech.supported() && el.speak.value && el.speak.value !== 'off';
+    el.btnSpeak.hidden = !on;
+  }
+
+  el.btnSpeak.addEventListener('click', speakCurrent);
+
+  if (M.speech.supported() &&
+      typeof window.speechSynthesis.addEventListener === 'function') {
+    window.speechSynthesis.addEventListener('voiceschanged', function () {
+      buildSpeakSelect();
+      syncSpeakButton();
+    });
+  }
+
   /* ── boot ──────────────────────────────────────────────────────── */
 
+  buildLangSelect();
   buildSelect();
 
   var saved = M.store.read();
+  setLang((saved.prefs && saved.prefs.lang) || M.i18n.detect(), true);
   applyPrefs(saved.prefs);
   setScale(state.scale, true);
+  syncSpeakButton();
 
   if (!applyHash()) {
     var pid = saved.prefs && saved.prefs.textId;

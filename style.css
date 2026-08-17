@@ -545,3 +545,30 @@ button.primary {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ── Language selector + speech ───────────────────────────────────── */
+
+.head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.lang-select {
+  width: auto;
+  flex: 0 0 auto;
+  max-width: 9.5rem;
+  font-size: .88rem;
+  padding: .35rem .5rem;
+}
+
+.hint {
+  margin: .5rem 0 0;
+  color: var(--muted);
+  font-size: .8rem;
+}
+
+#btn-speak { flex: 0 0 3.2rem; font-size: 1.1rem; }
+
+.radio b { font-weight: 500; }
