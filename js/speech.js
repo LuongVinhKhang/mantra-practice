@@ -13,13 +13,29 @@
 (function (M) {
   'use strict';
 
+  /* `reads` says WHAT to hand the voice:
+   *   'han' — the Chinese characters themselves. Mandarin and Cantonese
+   *           voices read hanzi natively.
+   *   0     — index into the readings table: the Hán-Việt romanisation. A
+   *           Vietnamese voice given 敬禮迅捷勇度母 produces silence, because
+   *           it has no idea what to do with Chinese characters. Give it
+   *           "kính lễ tấn tiệp dũng độ mẫu" and it reads it correctly.
+   *
+   * English is deliberately absent: an English voice has nothing sensible to
+   * say about either the characters or the romanisation. */
   var LANGS = [
-    { id: 'zh-TW', match: ['zh-tw', 'zh-hk', 'zh-hant', 'cmn-hant'] },
-    { id: 'zh-CN', match: ['zh-cn', 'zh-hans', 'cmn-hans', 'zh'] },
-    { id: 'yue-HK', match: ['yue', 'zh-yue', 'zh-hk'] },
-    { id: 'vi-VN', match: ['vi'] },
-    { id: 'en-US', match: ['en'] }
+    { id: 'zh-TW',  reads: 'han', match: ['zh-tw', 'zh-hk', 'zh-hant', 'cmn-hant'] },
+    { id: 'zh-CN',  reads: 'han', match: ['zh-cn', 'zh-hans', 'cmn-hans', 'zh'] },
+    { id: 'yue-HK', reads: 'han', match: ['yue', 'zh-yue', 'zh-hk'] },
+    { id: 'vi-VN',  reads: 0,     match: ['vi'] }
   ];
+
+  function readsOf(langId) {
+    for (var i = 0; i < LANGS.length; i++) {
+      if (LANGS[i].id === langId) return LANGS[i].reads;
+    }
+    return 'han';
+  }
 
   var voices = [];
 
@@ -89,6 +105,7 @@
   }
 
   M.speech = {
+    readsOf: readsOf,
     supported: supported,
     available: available,
     voiceFor: voiceFor,

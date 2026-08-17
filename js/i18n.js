@@ -76,7 +76,18 @@
       'confirm.replace': 'Replace text',
       'ov.close': 'Close',
       'ov.hint': 'Tap any item to jump to it.',
-      'ov.items': 'items'
+      'ov.items': 'items',
+      'audio.legend': 'Your own recording',
+      'audio.pick': 'Choose audio…',
+      'audio.picksub': 'Choose .vtt / .srt…',
+      'audio.none': 'No recording loaded.',
+      'audio.privacy': 'The file stays on your device — nothing is uploaded.',
+      'audio.clear': 'Remove recording',
+      'audio.loaded': 'Audio loaded',
+      'audio.follow': 'Following the recording',
+      'audio.cues': 'cues',
+      'audio.nocues': 'No timings — the recording plays alongside your own pace.',
+      'audio.badcue': 'That subtitle file has no usable timings.'
     },
 
     vi: {
@@ -146,7 +157,18 @@
       'confirm.replace': 'Thay thế',
       'ov.close': 'Đóng',
       'ov.hint': 'Chạm vào một mục để nhảy tới đó.',
-      'ov.items': 'mục'
+      'ov.items': 'mục',
+      'audio.legend': 'Bản thu của bạn',
+      'audio.pick': 'Chọn tệp âm thanh…',
+      'audio.picksub': 'Chọn tệp .vtt / .srt…',
+      'audio.none': 'Chưa có bản thu.',
+      'audio.privacy': 'Tệp nằm trên máy bạn — không có gì được tải lên.',
+      'audio.clear': 'Bỏ bản thu',
+      'audio.loaded': 'Đã tải âm thanh',
+      'audio.follow': 'Đi theo bản thu',
+      'audio.cues': 'đoạn',
+      'audio.nocues': 'Không có mốc thời gian — bản thu phát song song theo nhịp của bạn.',
+      'audio.badcue': 'Tệp phụ đề này không có mốc thời gian dùng được.'
     },
 
     'zh-Hant': {
@@ -216,7 +238,18 @@
       'confirm.replace': '取代',
       'ov.close': '關閉',
       'ov.hint': '點任一項即可跳至該處。',
-      'ov.items': '項'
+      'ov.items': '項',
+      'audio.legend': '您的錄音',
+      'audio.pick': '選擇音訊檔…',
+      'audio.picksub': '選擇 .vtt / .srt…',
+      'audio.none': '尚未載入錄音。',
+      'audio.privacy': '檔案留在您的裝置上，不會上傳。',
+      'audio.clear': '移除錄音',
+      'audio.loaded': '已載入音訊',
+      'audio.follow': '跟隨錄音',
+      'audio.cues': '段',
+      'audio.nocues': '沒有時間軸 — 錄音會依您自己的節奏同時播放。',
+      'audio.badcue': '這個字幕檔沒有可用的時間軸。'
     },
 
     'zh-Hans': {
@@ -286,7 +319,18 @@
       'confirm.replace': '替换',
       'ov.close': '关闭',
       'ov.hint': '点任一项即可跳至该处。',
-      'ov.items': '项'
+      'ov.items': '项',
+      'audio.legend': '您的录音',
+      'audio.pick': '选择音频文件…',
+      'audio.picksub': '选择 .vtt / .srt…',
+      'audio.none': '尚未载入录音。',
+      'audio.privacy': '文件留在您的设备上，不会上传。',
+      'audio.clear': '移除录音',
+      'audio.loaded': '已载入音频',
+      'audio.follow': '跟随录音',
+      'audio.cues': '段',
+      'audio.nocues': '没有时间轴 — 录音会按您自己的节奏同时播放。',
+      'audio.badcue': '这个字幕文件没有可用的时间轴。'
     }
   };
 

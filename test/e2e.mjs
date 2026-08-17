@@ -12,7 +12,9 @@ const check = (name, cond, extra = '') => {
   else { fail++; console.log(`  FAIL ${name} ${extra}`); }
 };
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({
+  args: ['--autoplay-policy=no-user-gesture-required']
+});
 
 // ── Desktop pass ────────────────────────────────────────────────────
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -499,6 +501,111 @@ check('only real voices are offered',
   `${await page.locator('#speak-select option').count()} vs ${sp.langs.length}+1`);
 check('honest note when no voices exist',
   sp.langs.length > 0 || /no speech voices/i.test(sp.note), sp.note);
+
+console.log('\nLocal recording: load, follow, and privacy');
+await page.goto(APP);
+await page.waitForTimeout(300);
+check('audio panel present', await page.locator('#audio-field').isVisible());
+check('no recording message', /No recording loaded/.test(await page.textContent('#audio-status')));
+check('remove button hidden until something is loaded',
+  await page.locator('#audio-clear').isHidden());
+
+await page.setInputFiles('#cue-file', '/tmp/mw/test.vtt');
+await page.waitForTimeout(200);
+check('subtitles fill the text box',
+  (await page.inputValue('#text-input')).split('\n').length === 3,
+  JSON.stringify(await page.inputValue('#text-input')));
+check('text box holds the cue lines',
+  (await page.inputValue('#text-input')).split('\n')[0] === '南無觀世音菩薩');
+check('dropdown switches to your own text',
+  (await page.inputValue('#text-select')) === 'custom');
+
+await page.setInputFiles('#audio-file', '/tmp/mw/test.wav');
+await page.waitForTimeout(200);
+check('status reports audio + follow mode',
+  /Audio loaded/.test(await page.textContent('#audio-status')) &&
+  /Following the recording \(3 cues\)/.test(await page.textContent('#audio-status')),
+  await page.textContent('#audio-status'));
+check('remove button now shown', await page.locator('#audio-clear').isVisible());
+
+// PRIVACY: the src must be a local blob:, never an upload
+const src = await page.getAttribute('#audio', 'src');
+check('audio src is a local blob: URL, not a network URL',
+  /^blob:/.test(src || ''), String(src));
+
+await page.check('input[name="mode"][value="chanting"]');
+check('preview shows 3 cue items, not re-cut',
+  (await page.locator('#preview-items .pv-cell').count()) === 3,
+  String(await page.locator('#preview-items .pv-cell').count()));
+
+await page.click('#start-btn');
+check('follow mode: one cue = one item',
+  (await page.textContent('#counter')) === '1 / 3',
+  await page.textContent('#counter'));
+// Drive the clock directly so the assertion is about the sync logic, not
+// about how fast headless Chromium decides to start decoding.
+const seek = async t => {
+  await page.evaluate(x => { const a = document.getElementById('audio');
+    a.currentTime = x; a.dispatchEvent(new Event('timeupdate')); }, t);
+  await page.waitForTimeout(60);
+};
+await seek(1.2);
+check('recording position drives the item',
+  (await page.textContent('#counter')) === '2 / 3', await page.textContent('#counter'));
+check('follow mode: cue is NOT split on its internal space',
+  (await page.textContent('#item')) === '天地玄黃 宇宙洪荒',
+  await page.textContent('#item'));
+await seek(2.5);
+check('third cue', (await page.textContent('#counter')) === '3 / 3');
+await seek(0.2);
+check('seeking backwards moves the item back',
+  (await page.textContent('#counter')) === '1 / 3');
+await seek(1.2);
+check('transport shown in follow mode', await page.locator('#btn-toggle').isVisible());
+
+// pause must stop the audio, and a paused recording must not advance
+await page.evaluate(() => document.getElementById('audio').play().catch(() => {}));
+await page.waitForTimeout(150);
+await page.click('#btn-toggle');
+const pausedAt = await page.textContent('#counter');
+check('pause stops the recording',
+  await page.evaluate(() => document.getElementById('audio').paused));
+await page.waitForTimeout(1200);
+check('paused: recording position frozen',
+  (await page.textContent('#counter')) === pausedAt,
+  `${pausedAt} -> ${await page.textContent('#counter')}`);
+check('paused: stage dimmed', await page.evaluate(
+  () => document.getElementById('stage').classList.contains('is-paused')));
+await page.click('#btn-toggle');
+check('resume restarts the recording',
+  !(await page.evaluate(() => document.getElementById('audio').paused)));
+await page.evaluate(() => document.getElementById('audio').pause());
+
+// jumping an item seeks the audio
+await page.click('#counter');
+await page.click('#ov-grid .ov-cell[data-i="0"]');
+check('jump seeks the recording back to that cue',
+  (await page.evaluate(() => document.getElementById('audio').currentTime)) < 0.6,
+  String(await page.evaluate(() => document.getElementById('audio').currentTime)));
+check('jump moved the item', (await page.textContent('#counter')) === '1 / 3');
+
+await page.click('#btn-exit');
+check('exiting stops the recording',
+  await page.evaluate(() => document.getElementById('audio').paused));
+
+await page.click('#audio-clear');
+check('remove clears the audio element',
+  !(await page.getAttribute('#audio', 'src')));
+check('status back to none',
+  /No recording loaded/.test(await page.textContent('#audio-status')));
+await page.click('#resume-clear').catch(() => {});
+
+console.log('\nBad subtitle file is reported, not swallowed');
+await page.setInputFiles('#cue-file', '/tmp/mw/notasubtitle.txt');
+await page.waitForTimeout(200);
+check('garbage subtitle rejected with a message',
+  /no usable timings/i.test(await page.textContent('#audio-status')),
+  await page.textContent('#audio-status'));
 
 console.log('\nProgress bar');
 await page.fill('#text-input', '天地玄黃，宇宙洪荒。日月盈昃，辰宿列張。');

@@ -572,3 +572,29 @@ button.primary {
 #btn-speak { flex: 0 0 3.2rem; font-size: 1.1rem; }
 
 .radio b { font-weight: 500; }
+
+/* ── Local recording picker ───────────────────────────────────────── */
+
+.file-row { display: flex; flex-wrap: wrap; gap: .6rem; }
+
+.file-btn {
+  flex: 1 1 12rem;
+  display: block;
+  text-align: center;
+  font-size: .9rem;
+  padding: .6rem .8rem;
+  min-height: 2.75rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--field-bg);
+  cursor: pointer;
+}
+.file-btn:hover { border-color: var(--accent); border-style: solid; }
+.file-btn input[type="file"] {
+  position: absolute;
+  width: 1px; height: 1px;
+  opacity: 0; overflow: hidden;
+}
+
+#audio { display: none; }
+#audio-clear { margin-top: .3rem; text-align: left; }

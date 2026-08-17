@@ -62,6 +62,13 @@
     cancel:    $('confirm-cancel'),
     replace:   $('confirm-replace'),
 
+    audioField: $('audio-field'),
+    audioFile:  $('audio-file'),
+    cueFile:    $('cue-file'),
+    audioStatus:$('audio-status'),
+    audioClear: $('audio-clear'),
+    audio:      $('audio'),
+
     overview:  $('overview'),
     ovTitle:   $('ov-title'),
     ovGrid:    $('ov-grid'),
@@ -76,7 +83,11 @@
     engine: null,
     session: null,        // {items, mode, auto, intervalMs, textId, …}
     scale: 1,             // text-size multiplier
-    wakeLock: null
+    wakeLock: null,
+    audioUrl: null,       // object URL for the local recording
+    audioName: '',
+    cues: null,           // [{start,end,text}] from a .vtt/.srt, or null
+    cueName: ''
   };
 
   var MIN_SCALE = 0.6, MAX_SCALE = 1.8, SCALE_STEP = 0.15;
@@ -214,6 +225,19 @@
 
   var PREVIEW_ITEMS = 6;
 
+  /* With a recording + timings loaded, one cue is one item — the segmenter
+   * must not re-cut them, or the audio and the screen drift apart. The
+   * preview has to agree with the practice screen, so both go through here. */
+  function followActive(mode) {
+    return !!(state.audioUrl && state.cues && mode === 'chanting');
+  }
+
+  function itemsFor(raw, mode) {
+    return followActive(mode)
+      ? state.cues.map(function (c) { return c.text; })
+      : M.segment(raw, mode);
+  }
+
   function updateMeta() {
     var raw = el.input.value;
     if (!raw.trim()) {
@@ -225,8 +249,8 @@
     el.preview.hidden = false;
 
     var mode = currentMode();
-    var items = M.segment(raw, mode);
-    var reps = clampRepeat(el.repeat.value);
+    var items = itemsFor(raw, mode);
+    var reps = followActive(mode) ? 1 : clampRepeat(el.repeat.value);
     var line;
 
     var T = M.i18n.t;
@@ -345,18 +369,19 @@
 
   function renderReadings(index) {
     var s = state.session;
-    el.readHv.hidden  = !(s && s.rHv);
-    el.readPy.hidden  = !(s && s.rPy);
-    el.readYue.hidden = !(s && s.rYue);
-    if (s && s.rHv)  el.readHv.textContent  = sliceReading(s.rHv, index);
-    if (s && s.rPy)  el.readPy.textContent  = sliceReading(s.rPy, index);
-    if (s && s.rYue) el.readYue.textContent = sliceReading(s.rYue, index);
+    el.readHv.hidden  = !(s && s.showHv);
+    el.readPy.hidden  = !(s && s.showPy);
+    el.readYue.hidden = !(s && s.showYue);
+    if (s && s.showHv)  el.readHv.textContent  = sliceReading(s.rHv, index);
+    if (s && s.showPy)  el.readPy.textContent  = sliceReading(s.rPy, index);
+    if (s && s.showYue) el.readYue.textContent = sliceReading(s.rYue, index);
   }
 
   function render(s) {
     if (s.finished) {
       M.store.clearSession();
       M.speech.cancel();
+      stopAudio();
       releaseWake();
       show(el.done);
       return;
@@ -372,6 +397,8 @@
       el.toggle.hidden = false;
       el.toggle.textContent = M.i18n.t(s.playing ? 'btn.pause' : 'btn.resume');
       el.stage.classList.toggle('is-paused', !s.playing);
+    } else if (state.session && state.session.followCues) {
+      renderPausedState();
     } else {
       el.toggle.hidden = true;
       el.stage.classList.remove('is-paused');
@@ -408,13 +435,23 @@
     });
     show(el.practice);
     state.engine.start(startIndex || 0);
-    if (session.auto) requestWake();
+
+    if (state.audioUrl) {
+      if (session.followCues) {
+        attachAudioFollow();
+        var c = state.cues[Math.min(startIndex || 0, state.cues.length - 1)];
+        try { el.audio.currentTime = c ? c.start : 0; } catch (e) {}
+      }
+      el.audio.play()['catch'](function () {});   // iOS may need a second tap
+    }
+    if (session.auto || state.audioUrl) requestWake();
   }
 
   function buildSession() {
     var raw = el.input.value;
     var mode = currentMode();
-    var base = M.segment(raw, mode);
+    var follow = followActive(mode);
+    var base = itemsFor(raw, mode);
     if (!base.length) return null;
 
     var reps = clampRepeat(el.repeat.value);
@@ -437,14 +474,22 @@
       if (n) lineGroups.push(n);
     });
     if (!lineGroups.length) lineGroups = [base.length];
+    if (follow) { lineGroups = [1]; reps = 1; }
 
     return {
+      followCues: follow,
       items: M.repeat(base, reps),
       offsets: offsets,
       lineGroups: lineGroups,
-      rHv:  el.optHv.checked  ? M.readingArray(raw, 0) : null,
+      /* Hán-Việt is also needed when a Vietnamese voice is selected, even if
+       * the reading line itself is switched off. */
+      rHv:  (el.optHv.checked || M.speech.readsOf(el.speak.value) === 0)
+              ? M.readingArray(raw, 0) : null,
       rPy:  el.optPy.checked  ? M.readingArray(raw, 1) : null,
       rYue: el.optYue.checked ? M.readingArray(raw, 2) : null,
+      showHv:  el.optHv.checked,
+      showPy:  el.optPy.checked,
+      showYue: el.optYue.checked,
       text: raw,
       textId: el.select.value,
       name: (t && el.select.value !== 'custom') ? t.name : 'My own text',
@@ -470,6 +515,7 @@
 
   function exitPractice() {
     M.speech.cancel();
+    stopAudio();
     if (state.engine) {
       saveSession(state.engine.index);
       state.engine.destroy();
@@ -480,9 +526,42 @@
     show(el.home);
   }
 
-  el.prev.addEventListener('click', function () { state.engine && state.engine.prev(); });
-  el.next.addEventListener('click', function () { state.engine && state.engine.next(); });
-  el.toggle.addEventListener('click', function () { state.engine && state.engine.toggle(); });
+  function seekToItem(i) {
+    if (!state.session || !state.session.followCues || !state.cues[i]) return;
+    try { el.audio.currentTime = state.cues[i].start; } catch (e) {}
+  }
+  el.prev.addEventListener('click', function () {
+    if (!state.engine) return;
+    state.engine.prev(); seekToItem(state.engine.index);
+  });
+  el.next.addEventListener('click', function () {
+    if (!state.engine) return;
+    state.engine.next(); seekToItem(state.engine.index);
+  });
+  function toggleAll() {
+    if (state.session && state.session.followCues) {
+      if (el.audio.paused) el.audio.play()['catch'](function () {});
+      else el.audio.pause();
+      renderPausedState();
+      return;
+    }
+    if (state.audioUrl) {
+      if (el.audio.paused) el.audio.play()['catch'](function () {}); else el.audio.pause();
+    }
+    if (state.engine) state.engine.toggle();
+  }
+
+  /* In follow mode the engine has no timer of its own, so the paused look has
+   * to come from the audio element. */
+  function renderPausedState() {
+    if (!state.session || !state.session.followCues) return;
+    var paused = el.audio.paused;
+    el.toggle.hidden = false;
+    el.toggle.textContent = M.i18n.t(paused ? 'btn.resume' : 'btn.pause');
+    el.stage.classList.toggle('is-paused', paused);
+  }
+
+  el.toggle.addEventListener('click', toggleAll);
   el.restart.addEventListener('click', function () { state.engine && state.engine.restart(); });
   el.exit.addEventListener('click', exitPractice);
 
@@ -492,9 +571,102 @@
     if (!act || !state.engine) return;
     if (act === 'prev') state.engine.prev();
     else if (act === 'next') state.engine.next();
-    else if (state.engine.auto) state.engine.toggle();
+    else if (state.engine.auto || state.session.followCues) toggleAll();
     else state.engine.next();
   });
+
+  /* ── your own recording ────────────────────────────────────────── */
+
+  function audioStatusText() {
+    var T = M.i18n.t;
+    if (!state.audioUrl) return T('audio.none');
+    var line = T('audio.loaded') + ' · ' + state.audioName;
+    line += state.cues
+      ? '  ·  ' + T('audio.follow') + ' (' + state.cues.length + ' ' + T('audio.cues') + ')'
+      : '  ·  ' + T('audio.nocues');
+    return line;
+  }
+
+  function refreshAudioUi() {
+    el.audioStatus.textContent = audioStatusText();
+    el.audioClear.hidden = !state.audioUrl && !state.cues;
+  }
+
+  el.audioFile.addEventListener('change', function () {
+    var f = el.audioFile.files && el.audioFile.files[0];
+    if (!f) return;
+    if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
+    /* createObjectURL points the <audio> element at the file already on this
+     * device. Nothing is read into the page, uploaded, or persisted. */
+    state.audioUrl = URL.createObjectURL(f);
+    state.audioName = f.name;
+    el.audio.src = state.audioUrl;
+    updateMeta();
+    refreshAudioUi();
+  });
+
+  el.cueFile.addEventListener('change', function () {
+    var f = el.cueFile.files && el.cueFile.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var cues = M.media.parseCues(reader.result);
+      if (!cues.length) {
+        state.cues = null;
+        el.audioStatus.textContent = M.i18n.t('audio.badcue');
+        return;
+      }
+      state.cues = cues;
+      state.cueName = f.name;
+      /* The cue lines become the text, so the preview, the overview and the
+       * readings all line up with what the recording actually says. */
+      el.input.value = cues.map(function (c) { return c.text; }).join('\n');
+      state.loadedSnapshot = '';
+      el.select.value = 'custom';
+      state.lastSelect = 'custom';
+      updateMeta();
+      refreshAudioUi();
+    };
+    reader.readAsText(f);
+  });
+
+  el.audioClear.addEventListener('click', function () {
+    if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
+    state.audioUrl = null; state.audioName = '';
+    state.cues = null; state.cueName = '';
+    el.audio.removeAttribute('src');
+    el.audioFile.value = '';
+    el.cueFile.value = '';
+    updateMeta();
+    refreshAudioUi();
+  });
+
+  /* Follow-along: the recording drives the index, so the app advances exactly
+   * when the reciter does. */
+  function attachAudioFollow() {
+    el.audio.addEventListener('timeupdate', onAudioTime);
+    el.audio.addEventListener('ended', onAudioEnded);
+  }
+  function detachAudioFollow() {
+    el.audio.removeEventListener('timeupdate', onAudioTime);
+    el.audio.removeEventListener('ended', onAudioEnded);
+  }
+  function onAudioTime() {
+    var s = state.session;
+    if (!s || !s.followCues || !state.engine || state.engine.finished) return;
+    var i = M.media.cueAt(state.cues, el.audio.currentTime);
+    if (i >= 0 && i !== state.engine.index) state.engine.jumpTo(i);
+  }
+  function onAudioEnded() {
+    if (state.session && state.session.followCues && state.engine) {
+      state.engine.finish();
+    }
+  }
+
+  function stopAudio() {
+    detachAudioFollow();
+    try { el.audio.pause(); } catch (e) {}
+  }
 
   /* ── overview map ──────────────────────────────────────────────── */
 
@@ -557,6 +729,7 @@
     var i = e.target && e.target.getAttribute && e.target.getAttribute('data-i');
     if (i === null || i === undefined || !state.engine) return;
     state.engine.jumpTo(Number(i));
+    seekToItem(state.engine.index);
     closeOverview();
   });
   el.overview.addEventListener('click', function (e) {
@@ -719,7 +892,8 @@
     else if (e.key === 'o' || e.key === 'O') { e.preventDefault(); openOverview(); }
     else if (e.key === ' ' || e.key === 'Spacebar') {
       e.preventDefault();
-      if (state.engine.auto) state.engine.toggle(); else state.engine.next();
+      if (state.engine.auto || (state.session && state.session.followCues)) toggleAll();
+      else state.engine.next();
     }
     else if (e.key === 'Escape')     { e.preventDefault(); exitPractice(); }
   });
@@ -788,7 +962,7 @@
 
   var SPEAK_NAMES = {
     'zh-TW': '國語 Mandarin (TW)', 'zh-CN': '普通话 Mandarin (CN)',
-    'yue-HK': '粵語 Cantonese', 'vi-VN': 'Tiếng Việt', 'en-US': 'English'
+    'yue-HK': '粵語 Cantonese', 'vi-VN': 'Tiếng Việt — Hán-Việt'
   };
 
   /* Only list languages this device actually has a voice for — offering a
@@ -819,7 +993,17 @@
     if (!state.engine || state.engine.finished) return;
     var lang = el.speak.value;
     if (!lang || lang === 'off') return;
-    M.speech.speak(state.engine.items[state.engine.index], lang);
+
+    var idx = state.engine.index;
+    var reads = M.speech.readsOf(lang);
+    /* A Vietnamese voice cannot read Chinese characters — hand it the
+     * Hán-Việt romanisation instead. Mandarin/Cantonese voices get the
+     * characters as-is. */
+    var text = (reads === 'han')
+      ? state.engine.items[idx]
+      : sliceReading(state.session && state.session.rHv, idx);
+    if (!text) return;
+    M.speech.speak(text, lang);
   }
 
   el.speak.addEventListener('change', function () {
@@ -870,6 +1054,7 @@
   syncSpeedField();
   updateMeta();
   showResume();
+  refreshAudioUi();
   show(el.home);
 
 })(window.Mantra = window.Mantra || {});

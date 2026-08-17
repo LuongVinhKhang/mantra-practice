@@ -65,6 +65,7 @@ js/readings.js  GENERATED hán-việt + pinyin + jyutping table (10,545 chars)
 js/reading.js   readings for a text, with override table
 js/i18n.js      interface strings for the four languages
 js/speech.js    text-to-speech via the browser's own voices
+js/media.js     .vtt/.srt parsing for follow-along playback
 js/store.js     localStorage — resume position and settings
 js/ui.js        all DOM code
 test/unit.mjs         pure-logic + content-integrity tests, zero dependencies
@@ -203,7 +204,7 @@ done, plus resume, the overview map, the pronunciation line, deep links, and a
 390×844 mobile pass with real touch taps — including a check that ten fast taps
 on Next advance ten items and do not trigger iOS double-tap zoom.
 
-Last run on this machine: **123 unit + 149 e2e, 0 failures.**
+Last run on this machine: **143 unit + 175 e2e, 0 failures.**
 
 ---
 
@@ -250,6 +251,30 @@ directly. No transcription is generated or guessed for you.
 
 ---
 
+## Practising along with a recording
+
+Load an audio file **from your own device** on the home screen. Optionally load
+the matching `.vtt` or `.srt` next to it (what `yt-dlp --write-auto-subs`
+writes), and the app follows the recording: **one cue becomes one practice
+item**, and the screen advances exactly when the reciter does. Pause, seek and
+the overview map all move the audio with them.
+
+Without timings the recording simply plays alongside your own pace.
+
+**The file never leaves your device.** It is played through
+`URL.createObjectURL`, which points the `<audio>` element at the file already on
+your disk — nothing is uploaded, copied into the page, or stored on a server. A
+test asserts the audio `src` is always a `blob:` URL.
+
+### Why no recordings are bundled
+
+This is a public site, so shipping recordings here would redistribute them to
+everyone. Commercial and YouTube-sourced chanting is under copyright, and the
+repository is not the place for it. Keep your audio local and load it with the
+picker — that is the whole reason the picker exists.
+
+---
+
 ## Read aloud
 
 Optional, using your device's own speech voices — no network, no API key, no
@@ -260,7 +285,10 @@ Two honest limits, stated in the app itself:
 
 - It reads **modern pronunciation**. A transliterated mantra like 楞嚴咒 was
   written to carry Sanskrit sounds; a Mandarin voice reading it is a rough guide,
-  not correct recitation.
+  not correct recitation. For real recitation, load a recording (above).
+- The **Vietnamese** voice is given the Hán-Việt romanisation, not the Chinese
+  characters — a Vietnamese voice handed 敬禮迅捷勇度母 produces silence. English
+  is not offered at all: it has nothing sensible to say about either form.
 - Voice quality and availability are entirely the device's. Cantonese (`yue-HK`)
   and Vietnamese are common on iOS/macOS, patchy elsewhere.
 

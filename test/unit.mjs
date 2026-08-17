@@ -19,7 +19,7 @@ sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
 for (const f of ['js/data.js', 'js/segment.js', 'js/engine.js',
                  'js/readings.js', 'js/reading.js', 'js/store.js',
-                 'js/i18n.js', 'js/speech.js']) {
+                 'js/i18n.js', 'js/speech.js', 'js/media.js']) {
   vm.runInContext(readFileSync(join(root, f), 'utf8'), sandbox, { filename: f });
 }
 const M = sandbox.window.Mantra;
@@ -327,6 +327,49 @@ console.log('\nSpeech degrades without speechSynthesis');
   eq('available() is empty', M.speech.available(), []);
   eq('speak() returns false, does not throw', M.speech.speak('南', 'zh-TW'), false);
   eq('cancel() does not throw', (M.speech.cancel(), true), true);
+}
+
+console.log('\nSubtitle parsing (.vtt / .srt)');
+{
+  const VTT = ['WEBVTT', 'Kind: captions', 'Language: zh-TW', '',
+    '00:00:58.166 --> 00:01:02.066', '南無薩怛他蘇伽多耶 阿囉訶帝', '',
+    '00:01:02.066 --> 00:01:06.233', '三藐三菩陀寫 薩怛他', ''].join('\n');
+  const SRT = ['1', '00:00:58,166 --> 00:01:02,066', '南無薩怛他蘇伽多耶 阿囉訶帝', '',
+               '2', '00:01:02,066 --> 00:01:06,233', '三藐三菩陀寫 薩怛他', ''].join('\n');
+
+  const v = M.media.parseCues(VTT);
+  const r = M.media.parseCues(SRT);
+  eq('vtt: header block skipped, 2 cues', v.length, 2);
+  eq('vtt: start time in seconds', v[0].start, 58.166);
+  eq('vtt: end time', v[0].end, 62.066);
+  eq('vtt: text', v[0].text, '南無薩怛他蘇伽多耶 阿囉訶帝');
+  eq('srt parses identically to vtt',
+     r.map(c => [c.start, c.text]), v.map(c => [c.start, c.text]));
+  eq('srt: numeric index line ignored', r[1].text, '三藐三菩陀寫 薩怛他');
+
+  eq('empty input', M.media.parseCues(''), []);
+  eq('garbage input', M.media.parseCues('not a subtitle file at all'), []);
+  eq('CRLF line endings',
+     M.media.parseCues('WEBVTT\r\n\r\n00:00:01.000 --> 00:00:02.000\r\n甲\r\n').length, 1);
+  eq('BOM stripped',
+     M.media.parseCues('\uFEFFWEBVTT\n\n00:00:01.000 --> 00:00:02.000\n甲\n').length, 1);
+  eq('mm:ss.mmm without hours',
+     M.media.parseCues('WEBVTT\n\n01:02.500 --> 01:03.500\n甲\n')[0].start, 62.5);
+  eq('styling tags stripped',
+     M.media.parseCues('WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n<c.a>甲</c>乙\n')[0].text, '甲乙');
+  eq('multi-line cue joined',
+     M.media.parseCues('WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n甲\n乙\n')[0].text, '甲 乙');
+  eq('cues sorted by start time',
+     M.media.parseCues(['WEBVTT','','00:00:05.000 --> 00:00:06.000','乙','',
+                        '00:00:01.000 --> 00:00:02.000','甲',''].join('\n'))
+       .map(c => c.text), ['甲','乙']);
+
+  eq('cueAt before the first cue', M.media.cueAt(v, 0), -1);
+  eq('cueAt inside cue 0', M.media.cueAt(v, 59), 0);
+  eq('cueAt exactly on a boundary', M.media.cueAt(v, 62.066), 1);
+  eq('cueAt past the end clamps to last', M.media.cueAt(v, 1e6), 1);
+  eq('cueAt on empty list', M.media.cueAt([], 5), -1);
+  eq('cueAt on null', M.media.cueAt(null, 5), -1);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
