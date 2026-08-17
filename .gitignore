@@ -1,0 +1,8 @@
+node_modules/
+package-lock.json
+test/shot-*.png
+.DS_Store
+
+# Internal product brief — kept out of the public repo.
+# To publish it anyway: remove this line, then `git add -f product_mvp.md`
+product_mvp.md

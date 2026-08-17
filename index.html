@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mantra Practice</title>
+<meta name="description" content="A quiet, guided way to practise reading, chanting and writing mantras.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<main id="app">
+
+  <!-- ───────────────────────── HOME ───────────────────────── -->
+  <section id="screen-home" class="screen is-active">
+    <header class="home-head">
+      <h1>Mantra Practice</h1>
+      <p class="sub">One character, or one phrase, at a time.</p>
+    </header>
+
+    <div id="resume-box" class="resume" hidden>
+      <p id="resume-text" class="resume-text"></p>
+      <div class="resume-actions">
+        <button id="resume-go" class="primary" type="button">Resume</button>
+        <button id="resume-clear" type="button">Start over</button>
+      </div>
+    </div>
+
+    <label class="field">
+      <span class="label">Choose a text</span>
+      <select id="text-select"></select>
+    </label>
+
+    <label class="field">
+      <span class="label">Text</span>
+      <textarea id="text-input" rows="4" spellcheck="false"
+                placeholder="Paste your text here…"></textarea>
+    </label>
+
+    <div id="preview" class="preview" hidden>
+      <p id="preview-meta" class="meta"></p>
+      <div id="preview-items" class="preview-items"></div>
+      <p id="preview-hint" class="preview-hint"></p>
+    </div>
+
+    <fieldset class="field">
+      <legend class="label">Practice mode</legend>
+      <label class="radio">
+        <input type="radio" name="mode" value="writing" checked>
+        <span>Writing <small>one character at a time</small></span>
+      </label>
+      <label class="radio">
+        <input type="radio" name="mode" value="chanting">
+        <span>Speaking / Chanting <small>one phrase at a time</small></span>
+      </label>
+    </fieldset>
+
+    <fieldset class="field">
+      <legend class="label">Progression</legend>
+      <label class="radio">
+        <input type="radio" name="prog" value="auto" checked>
+        <span>Automatic <small>advances on a timer</small></span>
+      </label>
+      <label class="radio">
+        <input type="radio" name="prog" value="manual">
+        <span>Manual <small>you press Next</small></span>
+      </label>
+    </fieldset>
+
+    <fieldset class="field">
+      <legend class="label">Pronunciation</legend>
+      <label class="radio">
+        <input type="checkbox" id="opt-hv">
+        <span>Hán-Việt <small>nam mô quán thế âm bồ tát</small></span>
+      </label>
+      <label class="radio">
+        <input type="checkbox" id="opt-py">
+        <span>Pinyin <small>nán wú guān shì yīn pú sà</small></span>
+      </label>
+    </fieldset>
+
+    <div class="row">
+      <label class="field" id="speed-field">
+        <span class="label">Speed</span>
+        <select id="speed-select">
+          <option value="slow">Slow</option>
+          <option value="normal" selected>Normal</option>
+          <option value="fast">Fast</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="label">Repeat</span>
+        <input id="repeat-input" type="number" min="1" max="1080" step="1"
+               value="1" inputmode="numeric">
+      </label>
+    </div>
+
+    <div class="field">
+      <span class="label">Text size</span>
+      <div class="sizer">
+        <button id="size-down" type="button" aria-label="Smaller">A−</button>
+        <span id="size-val">100%</span>
+        <button id="size-up" type="button" aria-label="Larger">A+</button>
+      </div>
+    </div>
+
+    <button id="start-btn" class="primary" type="button">Start Practice</button>
+    <p id="home-error" class="error" role="alert" hidden></p>
+    <button id="share-btn" class="link-btn" type="button" hidden>Copy a link to these settings</button>
+    <p id="share-note" class="meta center" hidden></p>
+  </section>
+
+  <!-- ─────────────────────── PRACTICE ─────────────────────── -->
+  <section id="screen-practice" class="screen">
+    <div id="stage" class="stage">
+      <div class="item-wrap">
+        <div id="item" class="item"></div>
+        <div id="reading-hv" class="reading" hidden></div>
+        <div id="reading-py" class="reading reading-py" hidden></div>
+      </div>
+      <div class="zones" aria-hidden="true">
+        <button class="zone" data-act="prev"  type="button" tabindex="-1"></button>
+        <button class="zone" data-act="toggle" type="button" tabindex="-1"></button>
+        <button class="zone" data-act="next"  type="button" tabindex="-1"></button>
+      </div>
+    </div>
+
+    <div class="foot">
+      <div class="bar"><span id="bar-fill"></span></div>
+      <button id="counter" class="counter" type="button"
+              title="Show the whole text (O)"><span id="counter-text"></span></button>
+      <div class="controls">
+        <button id="btn-prev"    type="button" title="Previous (←)">←</button>
+        <button id="btn-toggle"  type="button" class="wide" title="Pause / Resume (Space)">Pause</button>
+        <button id="btn-next"    type="button" title="Next (→)">→</button>
+      </div>
+      <div class="controls minor">
+        <button id="btn-restart" type="button">Restart</button>
+        <button id="btn-exit"    type="button">Exit</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── DONE ───────────────────────── -->
+  <section id="screen-done" class="screen">
+    <div class="done-box">
+      <h2>Practice complete</h2>
+      <p class="sub">Great job.</p>
+      <button id="btn-again" class="primary" type="button">Practice Again</button>
+      <button id="btn-home"  type="button">Back to Home</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- ──────────────────── REPLACE-TEXT MODAL ──────────────────── -->
+<div id="confirm" class="modal" hidden>
+  <div class="modal-box" role="alertdialog" aria-labelledby="confirm-msg">
+    <p id="confirm-msg">Selecting this text will replace your current text.</p>
+    <div class="modal-actions">
+      <button id="confirm-cancel"  type="button">Cancel</button>
+      <button id="confirm-replace" type="button" class="primary">Replace text</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────────────── OVERVIEW MAP ─────────────────────── -->
+<div id="overview" class="modal" hidden>
+  <div class="ov-box">
+    <div class="ov-head">
+      <span id="ov-title"></span>
+      <button id="ov-close" type="button">Close</button>
+    </div>
+    <div id="ov-grid" class="ov-grid"></div>
+    <p class="ov-hint">Tap any item to jump to it.</p>
+  </div>
+</div>
+
+<!-- Classic scripts on purpose: <script type="module"> and fetch() are both
+     blocked on file://, and this app must open by double-clicking index.html. -->
+<script src="js/data.js"></script>
+<script src="js/segment.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/store.js"></script>
+<script src="js/readings.js" defer></script>
+<script src="js/reading.js"></script>
+<script src="js/ui.js" defer></script>
+</body>
+</html>
