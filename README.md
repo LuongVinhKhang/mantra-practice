@@ -11,7 +11,9 @@ No build step. No server. No accounts. No data leaves your browser.
 ## Run it
 
 **Locally** — download or clone this folder and double-click `index.html`.
-That's it. It works over `file://` (this is tested, see below).
+That's it. It works over `file://` (this is tested, see below). The one
+exception is [practising along with a recording](#practising-along-with-a-recording),
+which needs the hosted copy — the app says so rather than failing quietly.
 
 **On the web** — GitHub Pages:
 
@@ -65,12 +67,13 @@ js/readings.js  GENERATED hán-việt + pinyin + jyutping table (10,545 chars)
 js/reading.js   readings for a text, with override table
 js/i18n.js      interface strings for the four languages
 js/speech.js    text-to-speech via the browser's own voices
-js/media.js     .vtt/.srt parsing for follow-along playback
+js/media.js     embedded YouTube player + cue lookup
 js/store.js     localStorage — resume position and settings
 js/ui.js        all DOM code
 test/unit.mjs         pure-logic + content-integrity tests, zero dependencies
 test/lint-content.mjs suspected conversion artifacts, zero dependencies
 test/e2e.mjs          real-browser tests (needs Playwright)
+tools/cues.mjs        caption file → verified cue timings (build-time only)
 ```
 
 The three layers are deliberately separate: `engine.js` never touches the
@@ -138,7 +141,7 @@ the repository owner supplied and verified. Nothing was reproduced from memory.
 | 南無觀世音菩薩 / 南無阿彌陀佛 / 南無本師釋迦牟尼佛 / 唵嘛呢叭咪吽 | 1 each | 6–9 | short invocations |
 | 文殊菩薩祈請文 · Manjushri, 13 verses | 52 | 468 | user-supplied (YouTube `1UvewDv0X2A`) |
 | 二十一度母讚 · 21 Taras | 84 | 588 | user-supplied, 15 conversion errors corrected |
-| 楞嚴咒 · Śūraṅgama Mantra | 455 | 2,619 | user-supplied WebVTT caption track |
+| 楞嚴咒 · Śūraṅgama Mantra | 455 | 2,619 | user-supplied WebVTT caption track (141 timed lines) |
 | 千字文 opening | — | 30 | writing practice |
 
 Full sutras that were *not* supplied — the Heart Sutra, the Great Compassion
@@ -253,25 +256,55 @@ directly. No transcription is generated or guessed for you.
 
 ## Practising along with a recording
 
-Load an audio file **from your own device** on the home screen. Optionally load
-the matching `.vtt` or `.srt` next to it (what `yt-dlp --write-auto-subs`
-writes), and the app follows the recording: **one cue becomes one practice
-item**, and the screen advances exactly when the reciter does. Pause, seek and
-the overview map all move the audio with them.
+Three of the texts carry a recording — the video each one was transcribed from:
 
-Without timings the recording simply plays alongside your own pace.
+| Text | Channel | Sync |
+| --- | --- | --- |
+| 文殊菩薩祈請文 | Sorrowless State | plays alongside |
+| 二十一度母讚 | Sorrowless State | plays alongside |
+| 楞嚴咒 | 見睹法師弘法梵音輯 | **141 lines, timed** |
 
-**The file never leaves your device.** It is played through
-`URL.createObjectURL`, which points the `<audio>` element at the file already on
-your disk — nothing is uploaded, copied into the page, or stored on a server. A
-test asserts the audio `src` is always a `blob:` URL.
+Tick **Practise with the recording** on the home screen. Where the video has
+line timings, the recording drives the screen: **one caption line becomes one
+practice item**, and the app advances exactly when the reciter does. Pause,
+seek, ← → and tapping a cell in the overview map all move the recording with
+them. Where it has none, it simply plays alongside your own pace.
 
-### Why no recordings are bundled
+Following a recording disables the timer and the device voice — the reciter
+sets the pace and does the speaking.
 
-This is a public site, so shipping recordings here would redistribute them to
-everyone. Commercial and YouTube-sourced chanting is under copyright, and the
-repository is not the place for it. Keep your audio local and load it with the
-picker — that is the whole reason the picker exists.
+### The recordings are embedded, not copied
+
+No audio is in this repository. Each recording is somebody else's upload, so
+the app embeds their YouTube video: it streams from YouTube, the reciter keeps
+the view and the credit, and nothing copyrighted is redistributed from here.
+Bundling the audio would mean handing out a copy of their work to everyone who
+opens the site, which is not this project's to do.
+
+That is also why it needs a connection **and the hosted copy of the page**.
+The YouTube player is driven over `postMessage`, and a page opened straight
+from disk has a `null` origin it will not answer — so over `file://` the
+checkbox is disabled with the reason shown, and over http(s) with no network
+the practice screen says the recording could not load. Either way the app
+falls back to its own timer, which is still a complete session.
+
+A unit test asserts no audio-shaped file is ever committed.
+
+### Rebuilding the timings
+
+`cues` in `js/data.js` is one `[start, end]` pair per line of `text`, lifted
+from that video's own caption track:
+
+```sh
+yt-dlp --write-subs --write-auto-subs --sub-langs "zh-Hant,zh-TW" \
+       --skip-download "https://www.youtube.com/watch?v=z4XC2fWlo9E"
+node tools/cues.mjs "<the .vtt it wrote>" shurangama
+```
+
+`tools/cues.mjs` prints nothing unless **every** cue text still matches the
+stored line exactly. Timings are fitted to the text; the text is never edited
+to fit the timings. Edit the text box in the app and the timings retire
+themselves rather than point at the wrong words.
 
 ---
 
@@ -285,7 +318,7 @@ Two honest limits, stated in the app itself:
 
 - It reads **modern pronunciation**. A transliterated mantra like 楞嚴咒 was
   written to carry Sanskrit sounds; a Mandarin voice reading it is a rough guide,
-  not correct recitation. For real recitation, load a recording (above).
+  not correct recitation. For real recitation, use a recording (above).
 - The **Vietnamese** voice is given the Hán-Việt romanisation, not the Chinese
   characters — a Vietnamese voice handed 敬禮迅捷勇度母 produces silence. English
   is not offered at all: it has nothing sensible to say about either form.

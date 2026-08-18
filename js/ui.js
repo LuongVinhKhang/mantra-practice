@@ -62,12 +62,13 @@
     cancel:    $('confirm-cancel'),
     replace:   $('confirm-replace'),
 
-    audioField: $('audio-field'),
-    audioFile:  $('audio-file'),
-    cueFile:    $('cue-file'),
-    audioStatus:$('audio-status'),
-    audioClear: $('audio-clear'),
-    audio:      $('audio'),
+    recField:  $('rec-field'),
+    optRec:    $('opt-rec'),
+    recNote:   $('rec-note'),
+    recCredit: $('rec-credit'),
+    recWrap:   $('rec-wrap'),
+    recSlot:   $('rec-slot'),
+    recError:  $('rec-error'),
 
     overview:  $('overview'),
     ovTitle:   $('ov-title'),
@@ -84,10 +85,7 @@
     session: null,        // {items, mode, auto, intervalMs, textId, …}
     scale: 1,             // text-size multiplier
     wakeLock: null,
-    audioUrl: null,       // object URL for the local recording
-    audioName: '',
-    cues: null,           // [{start,end,text}] from a .vtt/.srt, or null
-    cueName: ''
+    player: null          // YouTube controller while practising, else null
   };
 
   var MIN_SCALE = 0.6, MAX_SCALE = 1.8, SCALE_STEP = 0.15;
@@ -140,6 +138,7 @@
       hv: el.optHv.checked,
       py: el.optPy.checked,
       yue: el.optYue.checked,
+      rec: el.optRec.checked,
       lang: M.i18n.current(),
       speak: el.speak.value,
       scale: state.scale
@@ -163,6 +162,7 @@
     el.optHv.checked = !!p.hv;
     el.optPy.checked = !!p.py;
     el.optYue.checked = !!p.yue;
+    el.optRec.checked = !!p.rec;
     if (p.speak && hasSpeakOption(p.speak)) el.speak.value = p.speak;
     if (p.scale) setScale(p.scale, true);
   }
@@ -225,20 +225,38 @@
 
   var PREVIEW_ITEMS = 6;
 
-  /* With a recording + timings loaded, one cue is one item — the segmenter
-   * must not re-cut them, or the audio and the screen drift apart. The
-   * preview has to agree with the practice screen, so both go through here. */
+  /* The recording for the text now in the box, or null.
+   *
+   * `cues` are keyed to the stored text line by line, so the moment the box
+   * stops matching it they are wrong — better no timings than timings that
+   * point at the wrong words. */
+  function recording() {
+    var t = textById(el.select.value);
+    if (!t || !t.recording) return null;
+    return { rec: t.recording, cues: (el.input.value === t.text) ? (t.cues || null) : null };
+  }
+
+  function recEdited() {
+    var t = textById(el.select.value);
+    return !!(t && t.recording && t.cues && el.input.value !== t.text);
+  }
+
+  /* With timings, one cue is one item — the segmenter must not re-cut them or
+   * the recording and the screen drift apart. The preview has to agree with
+   * the practice screen, so both go through here. */
   function followActive(mode) {
-    return !!(state.audioUrl && state.cues && mode === 'chanting');
+    var r = recording();
+    return !!(r && r.cues && el.optRec.checked && mode === 'chanting');
   }
 
   function itemsFor(raw, mode) {
     return followActive(mode)
-      ? state.cues.map(function (c) { return c.text; })
+      ? raw.split('\n').filter(function (l) { return l.trim() !== ''; })
       : M.segment(raw, mode);
   }
 
   function updateMeta() {
+    refreshRecUi();
     var raw = el.input.value;
     if (!raw.trim()) {
       el.preview.hidden = true;
@@ -436,20 +454,15 @@
     show(el.practice);
     state.engine.start(startIndex || 0);
 
-    if (state.audioUrl) {
-      if (session.followCues) {
-        attachAudioFollow();
-        var c = state.cues[Math.min(startIndex || 0, state.cues.length - 1)];
-        try { el.audio.currentTime = c ? c.start : 0; } catch (e) {}
-      }
-      el.audio.play()['catch'](function () {});   // iOS may need a second tap
-    }
-    if (session.auto || state.audioUrl) requestWake();
+    if (session.rec) startPlayer(session, startIndex || 0);
+    if (session.auto || session.rec) requestWake();
   }
 
   function buildSession() {
     var raw = el.input.value;
     var mode = currentMode();
+    var r = recording();
+    var useRec = !!(r && el.optRec.checked);
     var follow = followActive(mode);
     var base = itemsFor(raw, mode);
     if (!base.length) return null;
@@ -478,6 +491,8 @@
 
     return {
       followCues: follow,
+      rec: useRec ? r.rec : null,
+      cues: follow ? r.cues : null,
       items: M.repeat(base, reps),
       offsets: offsets,
       lineGroups: lineGroups,
@@ -496,7 +511,7 @@
       mode: mode,
       speed: el.speed.value,
       repeat: reps,
-      auto: currentProgression() === 'auto',
+      auto: follow ? false : currentProgression() === 'auto',
       intervalMs: M.SPEEDS[mode][el.speed.value] || M.SPEEDS[mode].normal
     };
   }
@@ -527,8 +542,9 @@
   }
 
   function seekToItem(i) {
-    if (!state.session || !state.session.followCues || !state.cues[i]) return;
-    try { el.audio.currentTime = state.cues[i].start; } catch (e) {}
+    var s = state.session;
+    if (!state.player || !s || !s.cues || !s.cues[i]) return;
+    state.player.seek(s.cues[i][0]);
   }
   el.prev.addEventListener('click', function () {
     if (!state.engine) return;
@@ -539,23 +555,20 @@
     state.engine.next(); seekToItem(state.engine.index);
   });
   function toggleAll() {
-    if (state.session && state.session.followCues) {
-      if (el.audio.paused) el.audio.play()['catch'](function () {});
-      else el.audio.pause();
+    if (state.player) {
+      if (state.player.paused()) state.player.play(); else state.player.pause();
       renderPausedState();
-      return;
-    }
-    if (state.audioUrl) {
-      if (el.audio.paused) el.audio.play()['catch'](function () {}); else el.audio.pause();
+      /* When the recording sets the pace the engine has no timer to toggle. */
+      if (state.session && state.session.followCues) return;
     }
     if (state.engine) state.engine.toggle();
   }
 
   /* In follow mode the engine has no timer of its own, so the paused look has
-   * to come from the audio element. */
+   * to come from the player. */
   function renderPausedState() {
     if (!state.session || !state.session.followCues) return;
-    var paused = el.audio.paused;
+    var paused = !state.player || state.player.paused();
     el.toggle.hidden = false;
     el.toggle.textContent = M.i18n.t(paused ? 'btn.resume' : 'btn.pause');
     el.stage.classList.toggle('is-paused', paused);
@@ -575,97 +588,99 @@
     else state.engine.next();
   });
 
-  /* ── your own recording ────────────────────────────────────────── */
+  /* ── the recording ─────────────────────────────────────────────── */
 
-  function audioStatusText() {
+  /* Home panel. The recording is not shipped with the app — it is the
+   * reciter's own upload, embedded so they keep the view and the credit. */
+  /* The YouTube player is driven over postMessage, and a page opened straight
+   * from disk has a null origin it will not answer. Everything else in the app
+   * still works from file://; this one thing needs the hosted copy. */
+  var CAN_EMBED = (location.protocol !== 'file:');
+
+  function refreshRecUi() {
     var T = M.i18n.t;
-    if (!state.audioUrl) return T('audio.none');
-    var line = T('audio.loaded') + ' · ' + state.audioName;
-    line += state.cues
-      ? '  ·  ' + T('audio.follow') + ' (' + state.cues.length + ' ' + T('audio.cues') + ')'
-      : '  ·  ' + T('audio.nocues');
-    return line;
+    var r = recording();
+    el.recField.hidden = !r;
+    if (!r) return;
+
+    el.optRec.disabled = !CAN_EMBED;
+    if (!CAN_EMBED) el.optRec.checked = false;
+
+    var note;
+    if (!CAN_EMBED) {
+      note = T('rec.local');
+    } else if (r.cues) {
+      note = T('rec.follow') + ' (' + r.cues.length + ' ' + T('rec.lines') + ')';
+    } else if (recEdited()) {
+      note = T('rec.edited');
+    } else {
+      note = T('rec.nocues');
+    }
+    el.recNote.textContent = note;
+
+    el.recCredit.textContent = '';
+    var by = document.createElement('span');
+    by.textContent = T('rec.by') + ' ' + r.rec.by + ' · ';
+    var link = document.createElement('a');
+    link.href = M.media.watchUrl(r.rec.video);
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = T('rec.open');
+    var net = document.createElement('span');
+    net.textContent = ' · ' + T('rec.net');
+    el.recCredit.appendChild(by);
+    el.recCredit.appendChild(link);
+    el.recCredit.appendChild(net);
   }
 
-  function refreshAudioUi() {
-    el.audioStatus.textContent = audioStatusText();
-    el.audioClear.hidden = !state.audioUrl && !state.cues;
-  }
-
-  el.audioFile.addEventListener('change', function () {
-    var f = el.audioFile.files && el.audioFile.files[0];
-    if (!f) return;
-    if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
-    /* createObjectURL points the <audio> element at the file already on this
-     * device. Nothing is read into the page, uploaded, or persisted. */
-    state.audioUrl = URL.createObjectURL(f);
-    state.audioName = f.name;
-    el.audio.src = state.audioUrl;
-    updateMeta();
-    refreshAudioUi();
+  el.optRec.addEventListener('change', function () {
+    updateMeta();          // follow mode changes how the text is cut up
+    savePrefs();
   });
 
-  el.cueFile.addEventListener('change', function () {
-    var f = el.cueFile.files && el.cueFile.files[0];
-    if (!f) return;
-    var reader = new FileReader();
-    reader.onload = function () {
-      var cues = M.media.parseCues(reader.result);
-      if (!cues.length) {
-        state.cues = null;
-        el.audioStatus.textContent = M.i18n.t('audio.badcue');
-        return;
-      }
-      state.cues = cues;
-      state.cueName = f.name;
-      /* The cue lines become the text, so the preview, the overview and the
-       * readings all line up with what the recording actually says. */
-      el.input.value = cues.map(function (c) { return c.text; }).join('\n');
-      state.loadedSnapshot = '';
-      el.select.value = 'custom';
-      state.lastSelect = 'custom';
-      updateMeta();
-      refreshAudioUi();
-    };
-    reader.readAsText(f);
-  });
+  /* Practice screen. YT.Player replaces the element it is given, so each
+   * session gets a fresh throwaway div. */
+  function startPlayer(session, startIndex) {
+    var slot = document.createElement('div');
+    el.recSlot.textContent = '';
+    el.recSlot.appendChild(slot);
+    el.recWrap.hidden = false;
+    el.recError.hidden = true;
 
-  el.audioClear.addEventListener('click', function () {
-    if (state.audioUrl) URL.revokeObjectURL(state.audioUrl);
-    state.audioUrl = null; state.audioName = '';
-    state.cues = null; state.cueName = '';
-    el.audio.removeAttribute('src');
-    el.audioFile.value = '';
-    el.cueFile.value = '';
-    updateMeta();
-    refreshAudioUi();
-  });
+    M.media.createPlayer(slot, session.rec.video, {
+      onTime: onPlayerTime,
+      onState: onPlayerState,
+      onEnded: onPlayerEnded
+    }).then(function (p) {
+      if (!state.session) { p.destroy(); return; }   // exited while loading
+      state.player = p;
+      if (session.cues && session.cues[startIndex]) p.seek(session.cues[startIndex][0]);
+      p.play();
+      renderPausedState();
+    })['catch'](function () {
+      el.recError.textContent = M.i18n.t('rec.error');
+      el.recError.hidden = false;
+    });
+  }
 
-  /* Follow-along: the recording drives the index, so the app advances exactly
-   * when the reciter does. */
-  function attachAudioFollow() {
-    el.audio.addEventListener('timeupdate', onAudioTime);
-    el.audio.addEventListener('ended', onAudioEnded);
-  }
-  function detachAudioFollow() {
-    el.audio.removeEventListener('timeupdate', onAudioTime);
-    el.audio.removeEventListener('ended', onAudioEnded);
-  }
-  function onAudioTime() {
+  function onPlayerTime(t) {
     var s = state.session;
-    if (!s || !s.followCues || !state.engine || state.engine.finished) return;
-    var i = M.media.cueAt(state.cues, el.audio.currentTime);
+    if (!s || !s.cues || !state.engine || state.engine.finished) return;
+    var i = M.media.cueAt(s.cues, t);
     if (i >= 0 && i !== state.engine.index) state.engine.jumpTo(i);
   }
-  function onAudioEnded() {
-    if (state.session && state.session.followCues && state.engine) {
-      state.engine.finish();
-    }
+
+  function onPlayerState() { renderPausedState(); }
+
+  function onPlayerEnded() {
+    if (state.session && state.session.followCues && state.engine) state.engine.finish();
   }
 
   function stopAudio() {
-    detachAudioFollow();
-    try { el.audio.pause(); } catch (e) {}
+    if (state.player) { state.player.destroy(); state.player = null; }
+    el.recSlot.textContent = '';
+    el.recWrap.hidden = true;
+    el.recError.hidden = true;
   }
 
   /* ── overview map ──────────────────────────────────────────────── */
@@ -991,6 +1006,7 @@
 
   function speakCurrent() {
     if (!state.engine || state.engine.finished) return;
+    if (state.player) return;   // the reciter is already speaking
     var lang = el.speak.value;
     if (!lang || lang === 'off') return;
 
@@ -1054,7 +1070,6 @@
   syncSpeedField();
   updateMeta();
   showResume();
-  refreshAudioUi();
   show(el.home);
 
 })(window.Mantra = window.Mantra || {});

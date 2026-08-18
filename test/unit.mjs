@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readdirSync } from 'node:fs';
 import vm from 'node:vm';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -329,47 +330,50 @@ console.log('\nSpeech degrades without speechSynthesis');
   eq('cancel() does not throw', (M.speech.cancel(), true), true);
 }
 
-console.log('\nSubtitle parsing (.vtt / .srt)');
+console.log('\nRecordings and cue lookup');
 {
-  const VTT = ['WEBVTT', 'Kind: captions', 'Language: zh-TW', '',
-    '00:00:58.166 --> 00:01:02.066', '南無薩怛他蘇伽多耶 阿囉訶帝', '',
-    '00:01:02.066 --> 00:01:06.233', '三藐三菩陀寫 薩怛他', ''].join('\n');
-  const SRT = ['1', '00:00:58,166 --> 00:01:02,066', '南無薩怛他蘇伽多耶 阿囉訶帝', '',
-               '2', '00:01:02,066 --> 00:01:06,233', '三藐三菩陀寫 薩怛他', ''].join('\n');
+  const byId = Object.fromEntries(M.TEXTS.map(t => [t.id, t]));
 
-  const v = M.media.parseCues(VTT);
-  const r = M.media.parseCues(SRT);
-  eq('vtt: header block skipped, 2 cues', v.length, 2);
-  eq('vtt: start time in seconds', v[0].start, 58.166);
-  eq('vtt: end time', v[0].end, 62.066);
-  eq('vtt: text', v[0].text, '南無薩怛他蘇伽多耶 阿囉訶帝');
-  eq('srt parses identically to vtt',
-     r.map(c => [c.start, c.text]), v.map(c => [c.start, c.text]));
-  eq('srt: numeric index line ignored', r[1].text, '三藐三菩陀寫 薩怛他');
+  /* Every recording is a real, checked YouTube id — never invented. */
+  for (const t of M.TEXTS.filter(t => t.recording)) {
+    eq(`${t.id}: 11-character video id`, /^[\w-]{11}$/.test(t.recording.video), true);
+    eq(`${t.id}: credits the channel`, typeof t.recording.by === 'string' && t.recording.by.length > 0, true);
+  }
+  eq('no text carries cues without a recording',
+     M.TEXTS.filter(t => t.cues && !t.recording).map(t => t.id), []);
 
-  eq('empty input', M.media.parseCues(''), []);
-  eq('garbage input', M.media.parseCues('not a subtitle file at all'), []);
-  eq('CRLF line endings',
-     M.media.parseCues('WEBVTT\r\n\r\n00:00:01.000 --> 00:00:02.000\r\n甲\r\n').length, 1);
-  eq('BOM stripped',
-     M.media.parseCues('\uFEFFWEBVTT\n\n00:00:01.000 --> 00:00:02.000\n甲\n').length, 1);
-  eq('mm:ss.mmm without hours',
-     M.media.parseCues('WEBVTT\n\n01:02.500 --> 01:03.500\n甲\n')[0].start, 62.5);
-  eq('styling tags stripped',
-     M.media.parseCues('WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n<c.a>甲</c>乙\n')[0].text, '甲乙');
-  eq('multi-line cue joined',
-     M.media.parseCues('WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n甲\n乙\n')[0].text, '甲 乙');
-  eq('cues sorted by start time',
-     M.media.parseCues(['WEBVTT','','00:00:05.000 --> 00:00:06.000','乙','',
-                        '00:00:01.000 --> 00:00:02.000','甲',''].join('\n'))
-       .map(c => c.text), ['甲','乙']);
+  /* Cues are keyed to the stored lines. If these ever drift the app would
+   * show one line while the reciter chants another. */
+  for (const t of M.TEXTS.filter(t => t.cues)) {
+    const lines = t.text.split('\n');
+    eq(`${t.id}: one cue per line`, t.cues.length, lines.length);
+    eq(`${t.id}: every cue is [start, end]`,
+       t.cues.every(c => Array.isArray(c) && c.length === 2 && typeof c[0] === 'number'), true);
+    eq(`${t.id}: cues run forward`,
+       t.cues.every((c, i) => c[1] >= c[0] && (i === 0 || c[0] >= t.cues[i - 1][0])), true);
+  }
+  eq('shurangama has the 141 timings', byId.shurangama.cues.length, 141);
+  eq('shurangama first cue starts at 58.17', byId.shurangama.cues[0][0], 58.17);
 
+  const v = byId.shurangama.cues;
   eq('cueAt before the first cue', M.media.cueAt(v, 0), -1);
   eq('cueAt inside cue 0', M.media.cueAt(v, 59), 0);
-  eq('cueAt exactly on a boundary', M.media.cueAt(v, 62.066), 1);
-  eq('cueAt past the end clamps to last', M.media.cueAt(v, 1e6), 1);
+  eq('cueAt exactly on a boundary', M.media.cueAt(v, v[1][0]), 1);
+  eq('cueAt past the end clamps to last', M.media.cueAt(v, 1e6), v.length - 1);
   eq('cueAt on empty list', M.media.cueAt([], 5), -1);
   eq('cueAt on null', M.media.cueAt(null, 5), -1);
+
+  eq('toSeconds handles hh:mm:ss.mmm', M.media.toSeconds('00:00:58.166'), 58.166);
+  eq('toSeconds handles the srt comma', M.media.toSeconds('00:01:02,066'), 62.066);
+  eq('toSeconds handles mm:ss without hours', M.media.toSeconds('01:02.500'), 62.5);
+
+  eq('watchUrl points at youtube.com',
+     M.media.watchUrl('z4XC2fWlo9E'), 'https://www.youtube.com/watch?v=z4XC2fWlo9E');
+
+  /* The recordings are embedded, never copied: nothing audio-shaped ships. */
+  eq('no audio file is bundled with the app',
+     readdirSync(root, { recursive: true })
+       .filter(f => !String(f).startsWith('.git') && /\.(mp3|m4a|wav|ogg|opus|mp4|webm)$/i.test(String(f))), []);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

@@ -101,22 +101,14 @@
       <p class="hint" id="speak-note" data-i18n="speak.note">Uses your device voice.</p>
     </div>
 
-    <fieldset class="field" id="audio-field">
-      <legend class="label" data-i18n="audio.legend">Your own recording</legend>
-      <div class="file-row">
-        <label class="file-btn">
-          <input type="file" id="audio-file" accept="audio/*,video/*">
-          <span data-i18n="audio.pick">Choose audio…</span>
-        </label>
-        <label class="file-btn">
-          <input type="file" id="cue-file" accept=".vtt,.srt,text/vtt,text/plain">
-          <span data-i18n="audio.picksub">Choose .vtt / .srt…</span>
-        </label>
-      </div>
-      <p class="hint" id="audio-status" data-i18n="audio.none">No recording loaded.</p>
-      <p class="hint" data-i18n="audio.privacy">The file stays on your device — nothing is uploaded.</p>
-      <button type="button" id="audio-clear" class="link-btn" hidden
-              data-i18n="audio.clear">Remove recording</button>
+    <fieldset class="field" id="rec-field" hidden>
+      <legend class="label" data-i18n="rec.legend">Recording</legend>
+      <label class="radio">
+        <input type="checkbox" id="opt-rec">
+        <span><b data-i18n="rec.use">Practise with the recording</b>
+              <small id="rec-note"></small></span>
+      </label>
+      <p class="hint" id="rec-credit"></p>
     </fieldset>
 
     <div class="row">
@@ -167,6 +159,10 @@
     </div>
 
     <div class="foot">
+      <div id="rec-wrap" class="rec-wrap" hidden>
+        <div id="rec-slot"></div>
+        <p class="hint" id="rec-error" hidden></p>
+      </div>
       <div class="bar"><span id="bar-fill"></span></div>
       <button id="counter" class="counter" type="button"
               data-i18n-title="counter.title"
@@ -176,7 +172,6 @@
         <button id="btn-toggle"  type="button" class="wide" title="Pause / Resume (Space)">Pause</button>
         <button id="btn-next"    type="button" title="Next (→)">→</button>
         <button id="btn-speak"   type="button" hidden aria-label="Speak">🔊</button>
-        <audio id="audio" preload="metadata"></audio>
       </div>
       <div class="controls minor">
         <button id="btn-restart" type="button" data-i18n="btn.restart">Restart</button>

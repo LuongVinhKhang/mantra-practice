@@ -1,7 +1,9 @@
 import { chromium } from 'playwright';
 
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, extname } from 'node:path';
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
 
 // Tests the app over file:// — the same way you open it by double-clicking.
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -11,6 +13,22 @@ const check = (name, cond, extra = '') => {
   if (cond) { pass++; console.log(`  ok   ${name}`); }
   else { fail++; console.log(`  FAIL ${name} ${extra}`); }
 };
+
+/* The recording feature is the one part that cannot work from file://: the
+   YouTube player is driven over postMessage and will not answer a null
+   origin. So that block runs against a throwaway local server instead —
+   which is what the hosted copy is. */
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+const server = createServer(async (req, res) => {
+  const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
+  try {
+    const body = await readFile(join(root, rel));
+    res.writeHead(200, { 'content-type': MIME[extname(rel)] || 'application/octet-stream' });
+    res.end(body);
+  } catch { res.writeHead(404); res.end('no'); }
+});
+await new Promise(r => server.listen(0, '127.0.0.1', r));
+const SERVED = `http://127.0.0.1:${server.address().port}/index.html`;
 
 const browser = await chromium.launch({
   args: ['--autoplay-policy=no-user-gesture-required']
@@ -502,110 +520,195 @@ check('only real voices are offered',
 check('honest note when no voices exist',
   sp.langs.length > 0 || /no speech voices/i.test(sp.note), sp.note);
 
-console.log('\nLocal recording: load, follow, and privacy');
-await page.goto(APP);
+/* Switching text may raise the replace-text modal; leaving it open blocks
+   every later click behind the overlay. */
+const pickText = async id => {
+  await page.selectOption('#text-select', id);
+  if (await page.locator('#confirm').isVisible()) await page.click('#confirm-replace');
+  await page.waitForTimeout(150);
+};
+const clearResume = async () => {
+  if (await page.locator('#resume-clear').isVisible()) await page.click('#resume-clear');
+};
+
+console.log('\nRecording panel on the home screen');
+await page.goto(SERVED);
 await page.waitForTimeout(300);
-check('audio panel present', await page.locator('#audio-field').isVisible());
-check('no recording message', /No recording loaded/.test(await page.textContent('#audio-status')));
-check('remove button hidden until something is loaded',
-  await page.locator('#audio-clear').isHidden());
 
-await page.setInputFiles('#cue-file', '/tmp/mw/test.vtt');
-await page.waitForTimeout(200);
-check('subtitles fill the text box',
-  (await page.inputValue('#text-input')).split('\n').length === 3,
-  JSON.stringify(await page.inputValue('#text-input')));
-check('text box holds the cue lines',
-  (await page.inputValue('#text-input')).split('\n')[0] === '南無觀世音菩薩');
-check('dropdown switches to your own text',
-  (await page.inputValue('#text-select')) === 'custom');
+check('no recording panel for a text that has none',
+  await page.locator('#rec-field').isHidden());
+check('the local file pickers are gone',
+  (await page.locator('#audio-file').count()) === 0 &&
+  (await page.locator('#cue-file').count()) === 0 &&
+  (await page.locator('audio').count()) === 0);
 
-await page.setInputFiles('#audio-file', '/tmp/mw/test.wav');
-await page.waitForTimeout(200);
-check('status reports audio + follow mode',
-  /Audio loaded/.test(await page.textContent('#audio-status')) &&
-  /Following the recording \(3 cues\)/.test(await page.textContent('#audio-status')),
-  await page.textContent('#audio-status'));
-check('remove button now shown', await page.locator('#audio-clear').isVisible());
+await pickText('shurangama');
+check('recording panel appears for 楞嚴咒', await page.locator('#rec-field').isVisible());
+check('note offers to follow the reciter, 141 lines',
+  /follows the reciter \(141 lines\)/.test(await page.textContent('#rec-note')),
+  await page.textContent('#rec-note'));
+check('credit names the channel',
+  /見睹法師弘法梵音輯/.test(await page.textContent('#rec-credit')),
+  await page.textContent('#rec-credit'));
+check('credit links to the original video, in a new tab',
+  (await page.getAttribute('#rec-credit a', 'href')) ===
+    'https://www.youtube.com/watch?v=z4XC2fWlo9E' &&
+  (await page.getAttribute('#rec-credit a', 'target')) === '_blank');
 
-// PRIVACY: the src must be a local blob:, never an upload
-const src = await page.getAttribute('#audio', 'src');
-check('audio src is a local blob: URL, not a network URL',
-  /^blob:/.test(src || ''), String(src));
+await pickText('manjushri');
+check('a video with no timings says it only plays alongside',
+  /plays alongside/.test(await page.textContent('#rec-note')),
+  await page.textContent('#rec-note'));
 
-await page.check('input[name="mode"][value="chanting"]');
-check('preview shows 3 cue items, not re-cut',
-  (await page.locator('#preview-items .pv-cell').count()) === 3,
-  String(await page.locator('#preview-items .pv-cell').count()));
+await pickText('shurangama');
+await page.fill('#text-input', (await page.inputValue('#text-input')) + '\n天地玄黃');
+await page.waitForTimeout(150);
+check('editing the text retires the timings rather than mis-syncing them',
+  /no longer lines up/.test(await page.textContent('#rec-note')),
+  await page.textContent('#rec-note'));
 
-await page.click('#start-btn');
-check('follow mode: one cue = one item',
-  (await page.textContent('#counter')) === '1 / 3',
-  await page.textContent('#counter'));
-// Drive the clock directly so the assertion is about the sync logic, not
-// about how fast headless Chromium decides to start decoding.
-const seek = async t => {
-  await page.evaluate(x => { const a = document.getElementById('audio');
-    a.currentTime = x; a.dispatchEvent(new Event('timeupdate')); }, t);
+console.log('\nFollowing the recording');
+await page.goto(SERVED);
+await page.waitForTimeout(300);
+
+/* The suite must never reach youtube.com — swap the real player for a stub
+   that does exactly what the YT controller does, under our own clock. */
+const stubPlayer = () => page.evaluate(() => {
+  window.__yt = { seeks: [], playing: false, destroyed: 0, video: null };
+  window.Mantra.media.createPlayer = function (mount, videoId, h) {
+    window.__yt.video = videoId;
+    window.__yt.h = h;
+    const frame = document.createElement('iframe');
+    frame.id = 'fake-yt';
+    mount.replaceWith(frame);
+    return Promise.resolve({
+      play()    { window.__yt.playing = true;  h.onState && h.onState(true); },
+      pause()   { window.__yt.playing = false; h.onState && h.onState(false); },
+      seek(t)   { window.__yt.seeks.push(t); },
+      time()    { return 0; },
+      paused()  { return !window.__yt.playing; },
+      destroy() { window.__yt.destroyed++; }
+    });
+  };
+  window.__spoke = 0;
+  const realSpeak = window.Mantra.speech.speak;
+  window.Mantra.speech.speak = function () { window.__spoke++; return realSpeak.apply(null, arguments); };
+});
+const tick = async t => {
+  await page.evaluate(x => window.__yt.h.onTime(x), t);
   await page.waitForTimeout(60);
 };
-await seek(1.2);
-check('recording position drives the item',
-  (await page.textContent('#counter')) === '2 / 3', await page.textContent('#counter'));
-check('follow mode: cue is NOT split on its internal space',
-  (await page.textContent('#item')) === '天地玄黃 宇宙洪荒',
-  await page.textContent('#item'));
-await seek(2.5);
-check('third cue', (await page.textContent('#counter')) === '3 / 3');
-await seek(0.2);
-check('seeking backwards moves the item back',
-  (await page.textContent('#counter')) === '1 / 3');
-await seek(1.2);
-check('transport shown in follow mode', await page.locator('#btn-toggle').isVisible());
 
-// pause must stop the audio, and a paused recording must not advance
-await page.evaluate(() => document.getElementById('audio').play().catch(() => {}));
+await stubPlayer();
+await pickText('shurangama');
+await page.check('input[name="mode"][value="chanting"]');
+await page.waitForTimeout(100);
+const freePhrases = await page.textContent('#preview-meta');
+await page.check('#opt-rec');
 await page.waitForTimeout(150);
+check('following the recording stops the segmenter re-cutting the lines',
+  /141 phrases/.test(await page.textContent('#preview-meta')) &&
+  !/141 phrases/.test(freePhrases),
+  `${freePhrases}  ->  ${await page.textContent('#preview-meta')}`);
+check('preview shows a whole caption line, spaces and all',
+  (await page.locator('#preview-items .pv-cell').first().textContent())
+    === '南無薩怛他蘇伽多耶 阿囉訶帝');
+
+await page.click('#start-btn');
+await page.waitForTimeout(250);
+check('the player is embedded on the practice screen',
+  await page.locator('#rec-wrap').isVisible() &&
+  (await page.locator('#fake-yt').count()) === 1);
+check('it plays the video this text was transcribed from',
+  (await page.evaluate(() => window.__yt.video)) === 'z4XC2fWlo9E');
+check('playback starts at the first line, not at 0:00',
+  (await page.evaluate(() => window.__yt.seeks[0])) === 58.17,
+  String(await page.evaluate(() => window.__yt.seeks)));
+check('one cue = one item', (await page.textContent('#counter')) === '1 / 141',
+  await page.textContent('#counter'));
+
+await tick(63);
+check('the recording drives the item',
+  (await page.textContent('#counter')) === '2 / 141', await page.textContent('#counter'));
+check('the line is shown whole, not split on its internal space',
+  (await page.textContent('#item')) === '三藐三菩陀寫 薩怛他 佛陀俱胝瑟尼釤',
+  await page.textContent('#item'));
+await tick(58.5);
+check('seeking backwards moves the item back',
+  (await page.textContent('#counter')) === '1 / 141');
+
+check('the device voice stays quiet while the reciter is chanting',
+  (await page.evaluate(() => window.__spoke)) === 0);
+
+await tick(63);
+check('transport is shown while following', await page.locator('#btn-toggle').isVisible());
 await page.click('#btn-toggle');
-const pausedAt = await page.textContent('#counter');
 check('pause stops the recording',
-  await page.evaluate(() => document.getElementById('audio').paused));
+  !(await page.evaluate(() => window.__yt.playing)));
+check('paused: stage dimmed',
+  await page.evaluate(() => document.getElementById('stage').classList.contains('is-paused')));
+const pausedAt = await page.textContent('#counter');
 await page.waitForTimeout(1200);
-check('paused: recording position frozen',
+check('paused: nothing advances on its own',
   (await page.textContent('#counter')) === pausedAt,
   `${pausedAt} -> ${await page.textContent('#counter')}`);
-check('paused: stage dimmed', await page.evaluate(
-  () => document.getElementById('stage').classList.contains('is-paused')));
 await page.click('#btn-toggle');
 check('resume restarts the recording',
-  !(await page.evaluate(() => document.getElementById('audio').paused)));
-await page.evaluate(() => document.getElementById('audio').pause());
+  await page.evaluate(() => window.__yt.playing));
 
-// jumping an item seeks the audio
 await page.click('#counter');
-await page.click('#ov-grid .ov-cell[data-i="0"]');
-check('jump seeks the recording back to that cue',
-  (await page.evaluate(() => document.getElementById('audio').currentTime)) < 0.6,
-  String(await page.evaluate(() => document.getElementById('audio').currentTime)));
-check('jump moved the item', (await page.textContent('#counter')) === '1 / 3');
+await page.click('#ov-grid .ov-cell[data-i="10"]');
+check('jumping in the overview seeks the recording to that line',
+  (await page.evaluate(() => window.__yt.seeks.slice(-1)[0])) ===
+  (await page.evaluate(() => window.Mantra.TEXTS.find(t => t.id === 'shurangama').cues[10][0])));
+check('jump moved the item', (await page.textContent('#counter')) === '11 / 141');
 
 await page.click('#btn-exit');
-check('exiting stops the recording',
-  await page.evaluate(() => document.getElementById('audio').paused));
+check('exiting tears the player down',
+  (await page.evaluate(() => window.__yt.destroyed)) === 1 &&
+  (await page.locator('#fake-yt').count()) === 0 &&
+  await page.locator('#rec-wrap').isHidden());
+await clearResume();
 
-await page.click('#audio-clear');
-check('remove clears the audio element',
-  !(await page.getAttribute('#audio', 'src')));
-check('status back to none',
-  /No recording loaded/.test(await page.textContent('#audio-status')));
-await page.click('#resume-clear').catch(() => {});
+console.log('\nNo connection: the recording fails honestly');
+await page.goto(SERVED);
+await page.waitForTimeout(300);
+await page.evaluate(() => {
+  window.Mantra.media.createPlayer = () => Promise.reject(new Error('offline'));
+});
+await pickText('shurangama');
+await page.check('input[name="mode"][value="chanting"]');
+await page.check('#opt-rec');
+await page.click('#start-btn');
+await page.waitForTimeout(300);
+check('a failed recording says so instead of hanging',
+  await page.locator('#rec-error').isVisible() &&
+  /could not load/i.test(await page.textContent('#rec-error')),
+  await page.textContent('#rec-error'));
+check('practice still works by hand when the recording will not load',
+  (await page.textContent('#counter')) === '1 / 141');
+await page.click('#btn-next');
+check('Next still advances', (await page.textContent('#counter')) === '2 / 141');
+await page.click('#btn-exit');
+await clearResume();
 
-console.log('\nBad subtitle file is reported, not swallowed');
-await page.setInputFiles('#cue-file', '/tmp/mw/notasubtitle.txt');
+console.log('\nOpened from a file: the recording says why it cannot run');
+await page.goto(APP);
+await page.waitForTimeout(300);
+await page.selectOption('#text-select', 'shurangama');
+if (await page.locator('#confirm').isVisible()) await page.click('#confirm-replace');
 await page.waitForTimeout(200);
-check('garbage subtitle rejected with a message',
-  /no usable timings/i.test(await page.textContent('#audio-status')),
-  await page.textContent('#audio-status'));
+check('panel still shown over file://', await page.locator('#rec-field').isVisible());
+check('the checkbox is disabled, not silently broken',
+  await page.locator('#opt-rec').isDisabled());
+check('and it explains why',
+  /online copy/.test(await page.textContent('#rec-note')),
+  await page.textContent('#rec-note'));
+check('the video link still works from a file',
+  (await page.getAttribute('#rec-credit a', 'href'))
+    === 'https://www.youtube.com/watch?v=z4XC2fWlo9E');
+await page.goto(APP);
+await page.waitForTimeout(200);
 
 console.log('\nProgress bar');
 await page.fill('#text-input', '天地玄黃，宇宙洪荒。日月盈昃，辰宿列張。');
@@ -708,6 +811,7 @@ await m.screenshot({ path: join(root, 'test', 'shot-home.png'), fullPage: true }
 
 await mctx.close();
 await browser.close();
+server.close();
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
