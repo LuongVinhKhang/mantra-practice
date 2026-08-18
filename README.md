@@ -290,6 +290,12 @@ falls back to its own timer, which is still a complete session.
 
 A unit test asserts no audio-shaped file is ever committed.
 
+YouTube may run an **advert** before the recording. Seeks aimed at an advert
+are silently dropped, so the starting point rides on the video itself (the
+`start` player var) rather than a `seekTo` — otherwise the screen would sit on
+line 1 until the real recording caught up. The screen simply waits, showing the
+first line, until the reciter reaches it.
+
 ### Rebuilding the timings
 
 `cues` in `js/data.js` is one `[start, end]` pair per line of `text`, lifted

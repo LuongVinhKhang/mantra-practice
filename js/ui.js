@@ -647,14 +647,15 @@
     el.recWrap.hidden = false;
     el.recError.hidden = true;
 
+    var from = (session.cues && session.cues[startIndex]) ? session.cues[startIndex][0] : 0;
+
     M.media.createPlayer(slot, session.rec.video, {
       onTime: onPlayerTime,
       onState: onPlayerState,
       onEnded: onPlayerEnded
-    }).then(function (p) {
+    }, { start: from }).then(function (p) {
       if (!state.session) { p.destroy(); return; }   // exited while loading
       state.player = p;
-      if (session.cues && session.cues[startIndex]) p.seek(session.cues[startIndex][0]);
       p.play();
       renderPausedState();
     })['catch'](function () {

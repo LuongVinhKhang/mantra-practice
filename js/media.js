@@ -73,16 +73,26 @@
 
   /* Resolves with a small controller once the video is ready to play.
    * `mount` is replaced by the iframe, so hand it a throwaway element.
-   * handlers: { onTime(seconds), onState(playing), onEnded() } */
-  function createPlayer(mount, videoId, handlers) {
+   * handlers: { onTime(seconds), onState(playing), onEnded() }
+   * opts.start: whole seconds to begin at.
+   *
+   * The starting point goes through `start` rather than a seekTo() on ready,
+   * because YouTube may run an advert first and seeks aimed at an advert are
+   * silently dropped — the practice screen would then sit on line 1 until the
+   * real recording caught up. `start` is applied to the video itself, so it
+   * survives whatever plays in front of it. */
+  function createPlayer(mount, videoId, handlers, opts) {
     handlers = handlers || {};
+    opts = opts || {};
+    var vars = { playsinline: 1, rel: 0, modestbranding: 1 };
+    if (opts.start) vars.start = Math.max(0, Math.floor(opts.start));
     return loadApi().then(function (YT) {
       return new Promise(function (resolve, reject) {
         var timer = null, ctl = null, settled = false;
 
         var p = new YT.Player(mount, {
           videoId: videoId,
-          playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
+          playerVars: vars,
           events: {
             onReady: function () {
               timer = setInterval(function () {

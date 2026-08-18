@@ -575,9 +575,10 @@ await page.waitForTimeout(300);
    that does exactly what the YT controller does, under our own clock. */
 const stubPlayer = () => page.evaluate(() => {
   window.__yt = { seeks: [], playing: false, destroyed: 0, video: null };
-  window.Mantra.media.createPlayer = function (mount, videoId, h) {
+  window.Mantra.media.createPlayer = function (mount, videoId, h, opts) {
     window.__yt.video = videoId;
     window.__yt.h = h;
+    window.__yt.opts = opts;
     const frame = document.createElement('iframe');
     frame.id = 'fake-yt';
     mount.replaceWith(frame);
@@ -621,9 +622,14 @@ check('the player is embedded on the practice screen',
   (await page.locator('#fake-yt').count()) === 1);
 check('it plays the video this text was transcribed from',
   (await page.evaluate(() => window.__yt.video)) === 'z4XC2fWlo9E');
+/* Set at load time rather than seeked: YouTube silently drops seeks aimed at
+   a pre-roll advert, and the screen would then sit on line 1 until the real
+   recording caught up. media.js rounds this down to whole seconds. */
 check('playback starts at the first line, not at 0:00',
-  (await page.evaluate(() => window.__yt.seeks[0])) === 58.17,
-  String(await page.evaluate(() => window.__yt.seeks)));
+  (await page.evaluate(() => window.__yt.opts.start)) === 58.17,
+  JSON.stringify(await page.evaluate(() => window.__yt.opts)));
+check('nothing is seeked before playback begins',
+  (await page.evaluate(() => window.__yt.seeks.length)) === 0);
 check('one cue = one item', (await page.textContent('#counter')) === '1 / 141',
   await page.textContent('#counter'));
 
