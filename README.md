@@ -307,8 +307,12 @@ wrong words while you chant — the app lets you record the real ones:
 **Record the timings by tapping along** plays the recording from the top and
 shows one line at a time. Press **Mark** the moment each line begins. **Back**
 undoes the mark you just made, so one late tap does not cost the whole pass.
-The times come from the recording's own clock, so pausing, buffering or an
-advert cannot skew them.
+
+Two things protect the pass. Mark stays **off until the recording itself is
+playing** — during an advert `getCurrentTime()` reports the advert's clock,
+which restarts at zero when the recording finally begins, so marks taken then
+are meaningless. And a mark that is not after the previous one is **refused
+there and then**, rather than being kept and discovered after fifty taps.
 
 At the end the timings are saved on your device and that recording syncs from
 then on, exactly like a committed one. **Copy these timings** puts the block

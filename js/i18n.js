@@ -98,7 +98,9 @@
       'cap.saved': 'Timings saved on this device.',
       'cap.copied': 'Copied. Paste it into js/data.js so everyone gets it.',
       'cap.copyfail': 'Could not reach the clipboard — the timings are still saved here.',
-      'cap.dropped': 'Timings deleted.'
+      'cap.dropped': 'Timings deleted.',
+      'cap.waiting': 'Waiting for the recording to start — Mark turns on once it does.',
+      'cap.badmark': 'That one did not count: the recording has not passed your last mark yet.'
     },
 
     vi: {
@@ -190,7 +192,9 @@
       'cap.saved': 'Đã lưu mốc thời gian trên máy này.',
       'cap.copied': 'Đã sao chép. Dán vào js/data.js để mọi người cùng dùng.',
       'cap.copyfail': 'Không truy cập được clipboard — mốc thời gian vẫn được lưu ở đây.',
-      'cap.dropped': 'Đã xoá mốc thời gian.'
+      'cap.dropped': 'Đã xoá mốc thời gian.',
+      'cap.waiting': 'Đang chờ bản thu bắt đầu — nút Đánh dấu sẽ bật khi đó.',
+      'cap.badmark': 'Dấu này không tính: bản thu chưa vượt qua dấu trước của bạn.'
     },
 
     'zh-Hant': {
@@ -282,7 +286,9 @@
       'cap.saved': '時間軸已存在這台裝置上。',
       'cap.copied': '已複製。貼進 js/data.js，大家就都能用。',
       'cap.copyfail': '無法存取剪貼簿 — 時間軸仍然保存在這裡。',
-      'cap.dropped': '時間軸已刪除。'
+      'cap.dropped': '時間軸已刪除。',
+      'cap.waiting': '正在等待錄音開始 — 開始後「標記」就會啟用。',
+      'cap.badmark': '這一次不算：錄音還沒走過您上一個標記。'
     },
 
     'zh-Hans': {
@@ -374,7 +380,9 @@
       'cap.saved': '时间轴已保存在这台设备上。',
       'cap.copied': '已复制。粘贴进 js/data.js，大家就都能用。',
       'cap.copyfail': '无法访问剪贴板 — 时间轴仍然保存在这里。',
-      'cap.dropped': '时间轴已删除。'
+      'cap.dropped': '时间轴已删除。',
+      'cap.waiting': '正在等待录音开始 — 开始后「标记」就会启用。',
+      'cap.badmark': '这一次不算：录音还没走过您上一个标记。'
     }
   };
 

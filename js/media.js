@@ -162,6 +162,10 @@
           pause:   function () { try { p.pauseVideo(); } catch (e) {} },
           seek:    function (t) { try { p.seekTo(t, true); } catch (e) {} },
           time:    function () { try { return p.getCurrentTime() || 0; } catch (e) { return 0; } },
+          /* During an advert this reports the ADVERT's length, not the
+           * video's — which is the only handle the IFrame API gives on
+           * whether what you are hearing is the recording yet. */
+          duration: function () { try { return p.getDuration() || 0; } catch (e) { return 0; } },
           paused:  function () {
             try { return p.getPlayerState() !== YT.PlayerState.PLAYING; } catch (e) { return true; }
           },

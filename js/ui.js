@@ -429,6 +429,7 @@
     var capturing = !!(state.session && state.session.capture);
     el.mark.hidden = !capturing;
     el.capHint.hidden = !capturing;
+    if (capturing) refreshCaptureReady();
 
     if (capturing) {
       el.toggle.hidden = true;
@@ -620,14 +621,56 @@
     el.stage.classList.toggle('is-paused', paused);
   }
 
-  /* One tap = "this line starts now". The time comes from the player, so it
-   * is the recording's own clock and not the wall clock — pausing, buffering
-   * or an advert cannot skew it. */
+  /* YouTube may play an advert first, and during one getCurrentTime() reports
+   * the ADVERT's clock — which restarts at zero when the recording finally
+   * begins. Marks taken then are meaningless. getDuration() is the only
+   * handle the API gives: during an advert it reports the advert's length.
+   * These recordings are ten to sixteen minutes long, so anything this short
+   * is not the recording yet. */
+  var AD_MAX_SECONDS = 120;
+
+  function captureReady() {
+    if (!state.player) return false;
+    return (state.player.duration() || 0) > AD_MAX_SECONDS;
+  }
+
+  /* The Mark button only turns on once the recording itself is playing, so a
+   * whole pass cannot be spent marking an advert and thrown away at the end. */
+  function refreshCaptureReady() {
+    if (!state.session || !state.session.capture) return;
+    var ready = captureReady();
+    el.mark.disabled = !ready;
+    if (!ready) el.capHint.textContent = M.i18n.t('cap.waiting');
+    else if (el.capHint.textContent === M.i18n.t('cap.waiting')) {
+      el.capHint.textContent = M.i18n.t('cap.hint');
+    }
+  }
+
+  /* One tap = "this line starts now", on the recording's own clock. */
   function markNow() {
     var s = state.session;
     if (!s || !s.capture || !state.engine || state.engine.finished) return;
-    s.marks[state.engine.index] = state.player ? state.player.time() : 0;
+    if (!captureReady()) { el.capHint.textContent = M.i18n.t('cap.waiting'); return; }
+
+    var t = state.player ? state.player.time() : 0;
+    var prev = lastMarkBefore(state.engine.index);
+    /* Refuse here rather than at the end: finding out after fifty taps that
+     * the pass was wasted is the worst possible moment to say so. */
+    if (prev !== null && t <= prev) {
+      el.capHint.textContent = M.i18n.t('cap.badmark');
+      return;
+    }
+    el.capHint.textContent = M.i18n.t('cap.hint');
+    s.marks[state.engine.index] = t;
     state.engine.next();
+  }
+
+  function lastMarkBefore(index) {
+    var marks = state.session.marks;
+    for (var i = index - 1; i >= 0; i--) {
+      if (typeof marks[i] === 'number') return marks[i];
+    }
+    return null;
   }
 
   /* Back undoes the mark you just made, so one late tap does not cost the
@@ -793,6 +836,7 @@
 
   function onPlayerTime(t) {
     var s = state.session;
+    if (s && s.capture) { refreshCaptureReady(); return; }
     if (!s || !s.cues || !state.engine || state.engine.finished) return;
     var i = M.media.cueAt(s.cues, t);
     if (i >= 0 && i !== state.engine.index) state.engine.jumpTo(i);

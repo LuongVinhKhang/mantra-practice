@@ -574,7 +574,7 @@ await page.waitForTimeout(300);
 /* The suite must never reach youtube.com — swap the real player for a stub
    that does exactly what the YT controller does, under our own clock. */
 const stubPlayer = () => page.evaluate(() => {
-  window.__yt = { seeks: [], playing: false, destroyed: 0, video: null };
+  window.__yt = { seeks: [], playing: false, destroyed: 0, video: null, now: 0 };
   window.Mantra.media.createPlayer = function (mount, videoId, h, opts) {
     window.__yt.video = videoId;
     window.__yt.h = h;
@@ -582,13 +582,18 @@ const stubPlayer = () => page.evaluate(() => {
     const frame = document.createElement('iframe');
     frame.id = 'fake-yt';
     mount.replaceWith(frame);
+    /* The real controller polls getCurrentTime() on a timer, because the
+       IFrame API has no timeupdate event. The stub has to do the same or the
+       app never hears a clock at all. */
+    window.__yt.poll = setInterval(() => h.onTime && h.onTime(window.__yt.now || 0), 50);
     return Promise.resolve({
       play()    { window.__yt.playing = true;  h.onState && h.onState(true); },
       pause()   { window.__yt.playing = false; h.onState && h.onState(false); },
       seek(t)   { window.__yt.seeks.push(t); },
       time()    { return window.__yt.now || 0; },
+      duration(){ return window.__yt.duration === undefined ? 940 : window.__yt.duration; },
       paused()  { return !window.__yt.playing; },
-      destroy() { window.__yt.destroyed++; }
+      destroy() { clearInterval(window.__yt.poll); window.__yt.destroyed++; }
     });
   };
   window.__spoke = 0;
@@ -597,8 +602,8 @@ const stubPlayer = () => page.evaluate(() => {
 });
 const p_slice = async pg => (await pg.evaluate(() => (window.__clip || '').slice(0, 60)));
 const tick = async t => {
-  await page.evaluate(x => window.__yt.h.onTime(x), t);
-  await page.waitForTimeout(60);
+  await page.evaluate(x => { window.__yt.now = x; window.__yt.h.onTime(x); }, t);
+  await page.waitForTimeout(120);
 };
 
 await stubPlayer();
@@ -703,8 +708,9 @@ check('the counter says how many are left',
   await page.textContent('#counter'));
 check('a Mark button appears instead of Pause',
   await page.locator('#btn-mark').isVisible() && await page.locator('#btn-toggle').isHidden());
-check('and it explains what to do',
-  /the moment each line begins/.test(await page.textContent('#cap-hint')));
+check('and it explains what to do once the recording is running',
+  /the moment each line begins/.test(await page.textContent('#cap-hint')),
+  await page.textContent('#cap-hint'));
 check('capture plays the recording from the top, not from a cue',
   (await page.evaluate(() => window.__yt.opts.start)) === 0);
 check('the first line is shown whole',
@@ -714,10 +720,42 @@ check('the first line is shown whole',
 /* Mark every line, two seconds apart on the recording's own clock. */
 const markAt = async t => {
   await page.evaluate(x => { window.__yt.now = x; }, t);
+  await page.waitForTimeout(60);
   await page.click('#btn-mark');
 };
+/* An advert reports its own short length; the recording is 15+ minutes. */
+await page.evaluate(() => { window.__yt.duration = 20; window.__yt.h.onTime(4); });
+await page.waitForTimeout(150);
+check('Mark is off while an advert is playing',
+  await page.locator('#btn-mark').isDisabled());
+check('and it says what it is waiting for',
+  /Waiting for the recording to start/.test(await page.textContent('#cap-hint')),
+  await page.textContent('#cap-hint'));
+await page.click('#btn-mark', { force: true }).catch(() => {});
+check('a tap during the advert marks nothing',
+  (await page.textContent('#counter')).startsWith('1 / '),
+  await page.textContent('#counter'));
+
+await page.evaluate(() => { window.__yt.duration = 940; window.__yt.h.onTime(1); });
+await page.waitForTimeout(150);
+check('Mark turns on once the recording itself starts',
+  !(await page.locator('#btn-mark').isDisabled()));
+check('and the hint turns into what to do',
+  /the moment each line begins/.test(await page.textContent('#cap-hint')),
+  await page.textContent('#cap-hint'));
+
 await markAt(5);
 check('marking advances to the next line', (await page.textContent('#counter')).startsWith('2 / '));
+
+/* A mark that is not after the previous one is refused there and then,
+   not silently kept and discovered after the whole pass. */
+await page.evaluate(() => { window.__yt.now = 3; });
+await page.click('#btn-mark');
+await page.waitForTimeout(100);
+check('a mark before the previous one is refused immediately',
+  (await page.textContent('#counter')).startsWith('2 / ') &&
+  /did not count/.test(await page.textContent('#cap-hint')),
+  `${await page.textContent('#counter')} | ${await page.textContent('#cap-hint')}`);
 await markAt(7);
 await markAt(9);
 check('three marked', (await page.textContent('#counter')).startsWith('4 / '));
@@ -799,7 +837,7 @@ check('and they are gone from storage',
 
 /* Walking out half way must not leave timings that run out mid-text. */
 await page.click('#rec-capture');
-await page.waitForTimeout(250);
+await page.waitForTimeout(300);
 await markAt(3);
 await markAt(6);
 await page.click('#btn-exit');
