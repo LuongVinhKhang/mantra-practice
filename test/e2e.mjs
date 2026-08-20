@@ -586,7 +586,7 @@ const stubPlayer = () => page.evaluate(() => {
       play()    { window.__yt.playing = true;  h.onState && h.onState(true); },
       pause()   { window.__yt.playing = false; h.onState && h.onState(false); },
       seek(t)   { window.__yt.seeks.push(t); },
-      time()    { return 0; },
+      time()    { return window.__yt.now || 0; },
       paused()  { return !window.__yt.playing; },
       destroy() { window.__yt.destroyed++; }
     });
@@ -595,6 +595,7 @@ const stubPlayer = () => page.evaluate(() => {
   const realSpeak = window.Mantra.speech.speak;
   window.Mantra.speech.speak = function () { window.__spoke++; return realSpeak.apply(null, arguments); };
 });
+const p_slice = async pg => (await pg.evaluate(() => (window.__clip || '').slice(0, 60)));
 const tick = async t => {
   await page.evaluate(x => window.__yt.h.onTime(x), t);
   await page.waitForTimeout(60);
@@ -674,6 +675,139 @@ check('exiting tears the player down',
   (await page.evaluate(() => window.__yt.destroyed)) === 1 &&
   (await page.locator('#fake-yt').count()) === 0 &&
   await page.locator('#rec-wrap').isHidden());
+await clearResume();
+
+console.log('\nTapping in timings for a video with no captions');
+await page.goto(SERVED);
+await page.waitForTimeout(300);
+await stubPlayer();
+await page.evaluate(() => { try { const s = JSON.parse(localStorage.getItem('mantra.v1') || '{}'); delete s.cues; localStorage.setItem('mantra.v1', JSON.stringify(s)); } catch {} });
+await pickText('manjushri');
+
+check('a video with no captions offers to have its timings tapped in',
+  await page.locator('#rec-capture').isVisible());
+check('and offers nothing to copy or delete yet',
+  await page.locator('#rec-copy').isHidden() && await page.locator('#rec-drop').isHidden());
+check('楞嚴咒 has committed timings, so it is not asked to record them',
+  await (async () => { await pickText('shurangama');
+    const h = await page.locator('#rec-capture').isHidden(); await pickText('manjushri'); return h; })());
+
+await page.click('#rec-capture');
+await page.waitForTimeout(250);
+const LINES = await page.evaluate(() => window.Mantra.TEXTS.find(t => t.id === 'manjushri').text.split('\n').length);
+check('capture walks the text one source line at a time',
+  (await page.textContent('#counter')).startsWith(`1 / ${LINES}`),
+  await page.textContent('#counter'));
+check('the counter says how many are left',
+  new RegExp(`${LINES} left to mark`).test(await page.textContent('#counter')),
+  await page.textContent('#counter'));
+check('a Mark button appears instead of Pause',
+  await page.locator('#btn-mark').isVisible() && await page.locator('#btn-toggle').isHidden());
+check('and it explains what to do',
+  /the moment each line begins/.test(await page.textContent('#cap-hint')));
+check('capture plays the recording from the top, not from a cue',
+  (await page.evaluate(() => window.__yt.opts.start)) === 0);
+check('the first line is shown whole',
+  (await page.textContent('#item')) === await page.evaluate(
+    () => window.Mantra.TEXTS.find(t => t.id === 'manjushri').text.split('\n')[0]));
+
+/* Mark every line, two seconds apart on the recording's own clock. */
+const markAt = async t => {
+  await page.evaluate(x => { window.__yt.now = x; }, t);
+  await page.click('#btn-mark');
+};
+await markAt(5);
+check('marking advances to the next line', (await page.textContent('#counter')).startsWith('2 / '));
+await markAt(7);
+await markAt(9);
+check('three marked', (await page.textContent('#counter')).startsWith('4 / '));
+
+await page.click('#btn-prev');
+check('Back steps off the line you just marked',
+  (await page.textContent('#counter')).startsWith('3 / '));
+await markAt(8.5);
+check('and re-marking it moves on again',
+  (await page.textContent('#counter')).startsWith('4 / '));
+
+for (let i = 4; i <= LINES; i++) await markAt(6 + i * 2);
+
+await page.waitForTimeout(300);
+check('the last mark ends the capture and returns home',
+  await page.locator('#screen-home').evaluate(e => e.classList.contains('is-active')));
+check('it says the timings were saved',
+  /saved on this device/i.test(await page.textContent('#rec-copied')),
+  await page.textContent('#rec-copied'));
+check('the recording is torn down when capture ends',
+  (await page.locator('#fake-yt').count()) === 0);
+check('no half-finished practice session is left behind',
+  await page.locator('#resume-box').isHidden());
+
+const stored = await page.evaluate(() =>
+  JSON.parse(localStorage.getItem('mantra.v1')).cues.manjushri);
+check('one cue per line was stored', stored.length === LINES, String(stored.length));
+check('every stored cue runs forward and each line ends where the next begins',
+  stored.every((c, i) => c[1] > c[0] && (i === stored.length - 1 || c[1] === stored[i + 1][0])),
+  JSON.stringify(stored.slice(0, 4)));
+check('the corrected mark was kept, not the one Back removed',
+  stored[2][0] === 8.5, JSON.stringify(stored.slice(1, 4)));
+
+check('the panel now offers to follow, copy and delete',
+  /follows the reciter/.test(await page.textContent('#rec-note')) &&
+  /your own timings/.test(await page.textContent('#rec-note')) &&
+  await page.locator('#rec-copy').isVisible() &&
+  await page.locator('#rec-drop').isVisible() &&
+  await page.locator('#rec-capture').isHidden(),
+  await page.textContent('#rec-note'));
+
+await page.check('input[name="mode"][value="chanting"]');
+await page.check('#opt-rec');
+await page.waitForTimeout(150);
+check('tapped-in timings drive practice exactly like committed ones',
+  new RegExp(`${LINES} phrases`).test(await page.textContent('#preview-meta')),
+  await page.textContent('#preview-meta'));
+await page.click('#start-btn');
+await page.waitForTimeout(250);
+await tick(9.2);
+check('and the recording drives the screen with them',
+  (await page.textContent('#counter')) === `3 / ${LINES}`, await page.textContent('#counter'));
+await page.click('#btn-exit');
+await clearResume();
+
+/* Copying is what turns one person's pass into everyone's timings. */
+await page.evaluate(() => {
+  window.__clip = null;
+  navigator.clipboard.writeText = (t) => { window.__clip = t; return Promise.resolve(); };
+});
+await page.click('#rec-copy');
+await page.waitForTimeout(200);
+check('Copy hands over the exact block data.js carries',
+  /^ {4}cues: \[\n/.test(await page.evaluate(() => window.__clip || '')),
+  String(await p_slice(page)));
+check('and says where to paste it',
+  /js\/data\.js/.test(await page.textContent('#rec-copied')),
+  await page.textContent('#rec-copied'));
+
+await page.click('#rec-drop');
+await page.waitForTimeout(200);
+check('Delete removes them and offers to record again',
+  await page.locator('#rec-capture').isVisible() &&
+  await page.locator('#rec-copy').isHidden() &&
+  /plays alongside/.test(await page.textContent('#rec-note')),
+  await page.textContent('#rec-note'));
+check('and they are gone from storage',
+  (await page.evaluate(() => (JSON.parse(localStorage.getItem('mantra.v1')).cues || {}).manjushri)) === undefined);
+
+/* Walking out half way must not leave timings that run out mid-text. */
+await page.click('#rec-capture');
+await page.waitForTimeout(250);
+await markAt(3);
+await markAt(6);
+await page.click('#btn-exit');
+await page.waitForTimeout(200);
+check('a capture abandoned half way saves nothing',
+  (await page.evaluate(() => (JSON.parse(localStorage.getItem('mantra.v1')).cues || {}).manjushri)) === undefined);
+check('and still offers to record from the start',
+  await page.locator('#rec-capture').isVisible());
 await clearResume();
 
 console.log('\nNo connection: the recording fails honestly');

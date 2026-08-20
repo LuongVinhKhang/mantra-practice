@@ -108,7 +108,16 @@
         <span><b data-i18n="rec.use">Practise with the recording</b>
               <small id="rec-note"></small></span>
       </label>
+      <div class="rec-actions">
+        <button type="button" id="rec-capture" class="link-btn" hidden
+                data-i18n="cap.start">Record the timings by tapping along</button>
+        <button type="button" id="rec-copy" class="link-btn" hidden
+                data-i18n="cap.copy">Copy these timings</button>
+        <button type="button" id="rec-drop" class="link-btn" hidden
+                data-i18n="cap.drop">Delete these timings</button>
+      </div>
       <p class="hint" id="rec-credit"></p>
+      <p class="meta" id="rec-copied" hidden></p>
     </fieldset>
 
     <div class="row">
@@ -162,6 +171,7 @@
       <div id="rec-wrap" class="rec-wrap" hidden>
         <div id="rec-slot"></div>
         <p class="hint" id="rec-error" hidden></p>
+        <p class="hint" id="cap-hint" hidden data-i18n="cap.hint">Press Mark the moment each line begins. Back undoes the last mark.</p>
       </div>
       <div class="bar"><span id="bar-fill"></span></div>
       <button id="counter" class="counter" type="button"
@@ -171,6 +181,8 @@
         <button id="btn-prev"    type="button" title="Previous (←)">←</button>
         <button id="btn-toggle"  type="button" class="wide" title="Pause / Resume (Space)">Pause</button>
         <button id="btn-next"    type="button" title="Next (→)">→</button>
+        <button id="btn-mark"    type="button" class="wide" hidden
+                data-i18n="cap.mark">Mark</button>
         <button id="btn-speak"   type="button" hidden aria-label="Speak">🔊</button>
       </div>
       <div class="controls minor">

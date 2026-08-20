@@ -42,6 +42,53 @@
 
   function watchUrl(id) { return 'https://www.youtube.com/watch?v=' + id; }
 
+  /* Turn a list of marked start times into the [start, end] pairs a text
+   * carries. Used when a video has no caption track and the timings have to
+   * be tapped in by hand.
+   *
+   * Each line ends where the next one begins — that is what following a
+   * recitation means; a gap would leave the screen showing nothing while the
+   * reciter is still chanting. The last line has nothing after it, so it gets
+   * the typical length of the others rather than a number invented from
+   * nowhere. Marks are sorted and de-duplicated: a double tap should not
+   * create a line that ends before it starts. */
+  function buildCues(starts) {
+    var t = (starts || [])
+      .map(Number)
+      .filter(function (n) { return isFinite(n) && n >= 0; })
+      .sort(function (a, b) { return a - b; });
+
+    var clean = [];
+    for (var i = 0; i < t.length; i++) {
+      if (!clean.length || t[i] > clean[clean.length - 1]) clean.push(t[i]);
+    }
+    if (!clean.length) return [];
+    if (clean.length === 1) return [[round2(clean[0]), round2(clean[0] + 3)]];
+
+    var gaps = [];
+    for (var j = 1; j < clean.length; j++) gaps.push(clean[j] - clean[j - 1]);
+    var sorted = gaps.slice().sort(function (a, b) { return a - b; });
+    var median = sorted[sorted.length >> 1];
+
+    return clean.map(function (start, k) {
+      var end = (k + 1 < clean.length) ? clean[k + 1] : start + median;
+      return [round2(start), round2(end)];
+    });
+  }
+
+  function round2(n) { return Math.round(n * 100) / 100; }
+
+  /* The exact block `js/data.js` carries, so captured timings can be pasted
+   * straight in and shared with everyone instead of living on one device. */
+  function cuesToSource(cues) {
+    var rows = [], line = [];
+    (cues || []).forEach(function (c, i) {
+      line.push('[' + c[0] + ',' + c[1] + ']');
+      if (line.length === 6 || i === cues.length - 1) { rows.push('      ' + line.join(', ')); line = []; }
+    });
+    return '    cues: [\n' + rows.join(',\n') + '\n    ],';
+  }
+
   /* ── the IFrame API, loaded once and only if a recording is asked for ── */
 
   var apiPromise = null;
@@ -130,6 +177,8 @@
 
   M.media = {
     cueAt: cueAt,
+    buildCues: buildCues,
+    cuesToSource: cuesToSource,
     toSeconds: toSeconds,
     watchUrl: watchUrl,
     /* Swapped out by the test suite so it never touches the network. */

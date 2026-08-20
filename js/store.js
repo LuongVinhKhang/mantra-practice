@@ -36,11 +36,35 @@
     } catch (e) { return false; }
   }
 
+  /* Timings tapped in by hand, per text. They live here rather than in
+   * data.js because they belong to whoever recorded them — until they are
+   * copied out and committed, at which point everyone gets them. */
+  function cuesFor(textId) {
+    var all = read().cues;
+    var c = all && all[textId];
+    return (c && c.length) ? c : null;
+  }
+
+  function saveCues(textId, cues) {
+    var all = read().cues || {};
+    all[textId] = cues;
+    return patch({ cues: all });
+  }
+
+  function clearCues(textId) {
+    var all = read().cues || {};
+    delete all[textId];
+    return patch({ cues: all });
+  }
+
   M.store = {
     read: read,
     write: write,
     patch: patch,
     available: available,
+    cuesFor: cuesFor,
+    saveCues: saveCues,
+    clearCues: clearCues,
     clearSession: function () { patch({ session: null }); }
   };
 

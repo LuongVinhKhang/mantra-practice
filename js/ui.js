@@ -69,6 +69,12 @@
     recWrap:   $('rec-wrap'),
     recSlot:   $('rec-slot'),
     recError:  $('rec-error'),
+    recCapture:$('rec-capture'),
+    recCopy:   $('rec-copy'),
+    recDrop:   $('rec-drop'),
+    recCopied: $('rec-copied'),
+    mark:      $('btn-mark'),
+    capHint:   $('cap-hint'),
 
     overview:  $('overview'),
     ovTitle:   $('ov-title'),
@@ -233,7 +239,10 @@
   function recording() {
     var t = textById(el.select.value);
     if (!t || !t.recording) return null;
-    return { rec: t.recording, cues: (el.input.value === t.text) ? (t.cues || null) : null };
+    if (el.input.value !== t.text) return { rec: t.recording, cues: null, mine: false };
+    /* Timings tapped in on this device stand in until they are committed. */
+    var mine = !t.cues && M.store.cuesFor(t.id);
+    return { rec: t.recording, cues: t.cues || mine || null, mine: !!mine };
   }
 
   function recEdited() {
@@ -249,10 +258,12 @@
     return !!(r && r.cues && el.optRec.checked && mode === 'chanting');
   }
 
+  function lineItems(raw) {
+    return raw.split('\n').filter(function (l) { return l.trim() !== ''; });
+  }
+
   function itemsFor(raw, mode) {
-    return followActive(mode)
-      ? raw.split('\n').filter(function (l) { return l.trim() !== ''; })
-      : M.segment(raw, mode);
+    return followActive(mode) ? lineItems(raw) : M.segment(raw, mode);
   }
 
   function updateMeta() {
@@ -397,10 +408,14 @@
 
   function render(s) {
     if (s.finished) {
+      var captured = state.session && state.session.capture;
       M.store.clearSession();
       M.speech.cancel();
       stopAudio();
       releaseWake();
+      el.mark.hidden = true;
+      el.capHint.hidden = true;
+      if (captured) { finishCapture(); return; }
       show(el.done);
       return;
     }
@@ -411,7 +426,16 @@
     el.counterTxt.textContent = (s.index + 1) + ' / ' + s.total;
     el.fill.style.width = (((s.index + 1) / s.total) * 100).toFixed(2) + '%';
 
-    if (s.auto) {
+    var capturing = !!(state.session && state.session.capture);
+    el.mark.hidden = !capturing;
+    el.capHint.hidden = !capturing;
+
+    if (capturing) {
+      el.toggle.hidden = true;
+      el.stage.classList.remove('is-paused');
+      el.counterTxt.textContent = (s.index + 1) + ' / ' + s.total +
+        ' · ' + (s.total - s.index) + ' ' + M.i18n.t('cap.left');
+    } else if (s.auto) {
       el.toggle.hidden = false;
       el.toggle.textContent = M.i18n.t(s.playing ? 'btn.pause' : 'btn.resume');
       el.stage.classList.toggle('is-paused', !s.playing);
@@ -422,7 +446,8 @@
       el.stage.classList.remove('is-paused');
     }
 
-    saveSession(s.index);
+    /* Capture is a one-pass job, not a practice to come back to. */
+    if (!capturing) saveSession(s.index);
     speakCurrent();
   }
 
@@ -458,14 +483,18 @@
     if (session.auto || session.rec) requestWake();
   }
 
-  function buildSession() {
+  function buildSession(opts) {
+    opts = opts || {};
     var raw = el.input.value;
-    var mode = currentMode();
+    /* Capture walks the text one source line at a time, because that is the
+     * unit a caption track marks — whatever the practice settings say. */
+    var mode = opts.capture ? 'chanting' : currentMode();
     var r = recording();
-    var useRec = !!(r && el.optRec.checked);
-    var follow = followActive(mode);
-    var base = itemsFor(raw, mode);
+    var useRec = opts.capture ? !!r : !!(r && el.optRec.checked);
+    var follow = opts.capture ? false : followActive(mode);
+    var base = opts.capture ? lineItems(raw) : itemsFor(raw, mode);
     if (!base.length) return null;
+    if (opts.capture && !useRec) return null;
 
     var reps = clampRepeat(el.repeat.value);
     el.repeat.value = reps;
@@ -487,10 +516,12 @@
       if (n) lineGroups.push(n);
     });
     if (!lineGroups.length) lineGroups = [base.length];
-    if (follow) { lineGroups = [1]; reps = 1; }
+    if (follow || opts.capture) { lineGroups = [1]; reps = 1; }
 
     return {
       followCues: follow,
+      capture: !!opts.capture,
+      marks: opts.capture ? [] : null,
       rec: useRec ? r.rec : null,
       cues: follow ? r.cues : null,
       items: M.repeat(base, reps),
@@ -511,7 +542,7 @@
       mode: mode,
       speed: el.speed.value,
       repeat: reps,
-      auto: follow ? false : currentProgression() === 'auto',
+      auto: (follow || opts.capture) ? false : currentProgression() === 'auto',
       intervalMs: M.SPEEDS[mode][el.speed.value] || M.SPEEDS[mode].normal
     };
   }
@@ -531,6 +562,19 @@
   function exitPractice() {
     M.speech.cancel();
     stopAudio();
+    el.mark.hidden = true;
+    el.capHint.hidden = true;
+    /* A half-finished capture is not saved: partial timings would run out
+     * mid-text and leave the screen stuck. */
+    if (state.session && state.session.capture) {
+      state.session = null;
+      if (state.engine) { state.engine.destroy(); state.engine = null; }
+      releaseWake();
+      updateMeta();
+      showResume();
+      show(el.home);
+      return;
+    }
     if (state.engine) {
       saveSession(state.engine.index);
       state.engine.destroy();
@@ -548,10 +592,12 @@
   }
   el.prev.addEventListener('click', function () {
     if (!state.engine) return;
+    if (state.session && state.session.capture) { unmark(); return; }
     state.engine.prev(); seekToItem(state.engine.index);
   });
   el.next.addEventListener('click', function () {
     if (!state.engine) return;
+    if (state.session && state.session.capture) { markNow(); return; }
     state.engine.next(); seekToItem(state.engine.index);
   });
   function toggleAll() {
@@ -574,6 +620,44 @@
     el.stage.classList.toggle('is-paused', paused);
   }
 
+  /* One tap = "this line starts now". The time comes from the player, so it
+   * is the recording's own clock and not the wall clock — pausing, buffering
+   * or an advert cannot skew it. */
+  function markNow() {
+    var s = state.session;
+    if (!s || !s.capture || !state.engine || state.engine.finished) return;
+    s.marks[state.engine.index] = state.player ? state.player.time() : 0;
+    state.engine.next();
+  }
+
+  /* Back undoes the mark you just made, so one late tap does not cost the
+   * whole pass. */
+  function unmark() {
+    var s = state.session;
+    if (!s || !s.capture || !state.engine) return;
+    state.engine.prev();
+    s.marks[state.engine.index] = undefined;
+  }
+
+  function finishCapture() {
+    var s = state.session;
+    var marks = (s.marks || []).filter(function (t) { return typeof t === 'number'; });
+    var cues = M.media.buildCues(marks);
+    if (cues.length === s.items.length) {
+      M.store.saveCues(s.textId, cues);
+      saidRec('cap.saved');
+    } else {
+      /* Fewer usable marks than lines: a double tap, or a mark before the
+       * previous one. Saving that would point lines at the wrong words. */
+      saidRec('cap.copyfail');
+    }
+    state.session = null;
+    if (state.engine) { state.engine.destroy(); state.engine = null; }
+    updateMeta();
+    show(el.home);
+  }
+
+  el.mark.addEventListener('click', markNow);
   el.toggle.addEventListener('click', toggleAll);
   el.restart.addEventListener('click', function () { state.engine && state.engine.restart(); });
   el.exit.addEventListener('click', exitPractice);
@@ -582,6 +666,10 @@
   el.stage.addEventListener('click', function (e) {
     var act = e.target && e.target.getAttribute && e.target.getAttribute('data-act');
     if (!act || !state.engine) return;
+    if (state.session.capture) {
+      if (act === 'prev') unmark(); else markNow();
+      return;
+    }
     if (act === 'prev') state.engine.prev();
     else if (act === 'next') state.engine.next();
     else if (state.engine.auto || state.session.followCues) toggleAll();
@@ -611,12 +699,20 @@
       note = T('rec.local');
     } else if (r.cues) {
       note = T('rec.follow') + ' (' + r.cues.length + ' ' + T('rec.lines') + ')';
+      if (r.mine) note += ' · ' + T('cap.mine');
     } else if (recEdited()) {
       note = T('rec.edited');
     } else {
       note = T('rec.nocues');
     }
     el.recNote.textContent = note;
+
+    /* A video with no caption track has no timings to import. Rather than
+     * invent them, offer to record the real ones by tapping along once. */
+    el.recCapture.hidden = !(CAN_EMBED && !r.cues && !recEdited());
+    el.recCopy.hidden = !(CAN_EMBED && r.mine);
+    el.recDrop.hidden = !(CAN_EMBED && r.mine);
+    el.recCopied.hidden = true;
 
     el.recCredit.textContent = '';
     var by = document.createElement('span');
@@ -636,6 +732,37 @@
   el.optRec.addEventListener('change', function () {
     updateMeta();          // follow mode changes how the text is cut up
     savePrefs();
+  });
+
+  function saidRec(key) {
+    el.recCopied.textContent = M.i18n.t(key);
+    el.recCopied.hidden = false;
+  }
+
+  el.recCapture.addEventListener('click', function () {
+    var session = buildSession({ capture: true });
+    if (!session) { setError(M.i18n.t('err.empty')); return; }
+    setError('');
+    savePrefs();
+    startSession(session, 0);
+  });
+
+  el.recCopy.addEventListener('click', function () {
+    var r = recording();
+    if (!r || !r.cues) return;
+    var src = M.media.cuesToSource(r.cues);
+    var done = function () { saidRec('cap.copied'); };
+    try {
+      navigator.clipboard.writeText(src).then(done, function () { saidRec('cap.copyfail'); });
+    } catch (e) { saidRec('cap.copyfail'); }
+  });
+
+  el.recDrop.addEventListener('click', function () {
+    var t = textById(el.select.value);
+    if (!t) return;
+    M.store.clearCues(t.id);
+    updateMeta();
+    saidRec('cap.dropped');
   });
 
   /* Practice screen. YT.Player replaces the element it is given, so each
@@ -902,6 +1029,15 @@
       return;
     }
     if (!el.practice.classList.contains('is-active') || !state.engine) return;
+
+    if (state.session && state.session.capture) {
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); unmark(); }
+      else if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault(); markNow();
+      }
+      else if (e.key === 'Escape') { e.preventDefault(); exitPractice(); }
+      return;
+    }
 
     if (e.key === 'ArrowLeft')       { e.preventDefault(); state.engine.prev(); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); state.engine.next(); }

@@ -87,7 +87,18 @@
       'rec.net': 'Streams from YouTube, so it needs a connection. Nothing is stored here.',
       'rec.error': 'The recording could not load. Check your connection, or move yourself with \u2190 \u2192.',
       'rec.edited': 'You edited the text, so the recording no longer lines up with it.',
-      'rec.local': 'Recordings need the online copy of this page — opened straight from a file, the player cannot be controlled.'
+      'rec.local': 'Recordings need the online copy of this page — opened straight from a file, the player cannot be controlled.',
+      'cap.start': 'Record the timings by tapping along',
+      'cap.copy': 'Copy these timings',
+      'cap.drop': 'Delete these timings',
+      'cap.mark': 'Mark',
+      'cap.mine': 'your own timings',
+      'cap.hint': 'Press Mark the moment each line begins. Back undoes the last mark.',
+      'cap.left': 'left to mark',
+      'cap.saved': 'Timings saved on this device.',
+      'cap.copied': 'Copied. Paste it into js/data.js so everyone gets it.',
+      'cap.copyfail': 'Could not reach the clipboard — the timings are still saved here.',
+      'cap.dropped': 'Timings deleted.'
     },
 
     vi: {
@@ -168,7 +179,18 @@
       'rec.net': 'Phát trực tiếp từ YouTube nên cần có mạng. Không có gì được lưu ở đây.',
       'rec.error': 'Không tải được bản thu. Hãy kiểm tra mạng, hoặc tự chuyển bằng \u2190 \u2192.',
       'rec.edited': 'Bạn đã sửa văn bản nên bản thu không còn khớp.',
-      'rec.local': 'Bản thu cần bản trực tuyến của trang này — mở thẳng từ tệp thì không điều khiển được trình phát.'
+      'rec.local': 'Bản thu cần bản trực tuyến của trang này — mở thẳng từ tệp thì không điều khiển được trình phát.',
+      'cap.start': 'Ghi mốc thời gian bằng cách gõ theo',
+      'cap.copy': 'Sao chép mốc thời gian',
+      'cap.drop': 'Xoá mốc thời gian',
+      'cap.mark': 'Đánh dấu',
+      'cap.mine': 'mốc thời gian của bạn',
+      'cap.hint': 'Nhấn Đánh dấu ngay khi mỗi dòng bắt đầu. Nút Lùi sẽ bỏ dấu vừa đặt.',
+      'cap.left': 'dòng còn lại',
+      'cap.saved': 'Đã lưu mốc thời gian trên máy này.',
+      'cap.copied': 'Đã sao chép. Dán vào js/data.js để mọi người cùng dùng.',
+      'cap.copyfail': 'Không truy cập được clipboard — mốc thời gian vẫn được lưu ở đây.',
+      'cap.dropped': 'Đã xoá mốc thời gian.'
     },
 
     'zh-Hant': {
@@ -249,7 +271,18 @@
       'rec.net': '由 YouTube 串流播放，需要網路。這裡不儲存任何檔案。',
       'rec.error': '無法載入錄音。請檢查網路，或用 \u2190 \u2192 自行前進。',
       'rec.edited': '您修改了文字，錄音已無法對齊。',
-      'rec.local': '錄音需要線上版本的頁面 — 直接開啟檔案時無法控制播放器。'
+      'rec.local': '錄音需要線上版本的頁面 — 直接開啟檔案時無法控制播放器。',
+      'cap.start': '跟著敲打，記錄時間軸',
+      'cap.copy': '複製這份時間軸',
+      'cap.drop': '刪除這份時間軸',
+      'cap.mark': '標記',
+      'cap.mine': '您自己的時間軸',
+      'cap.hint': '每一行開始的瞬間按下「標記」。上一句可以取消剛才的標記。',
+      'cap.left': '行待標記',
+      'cap.saved': '時間軸已存在這台裝置上。',
+      'cap.copied': '已複製。貼進 js/data.js，大家就都能用。',
+      'cap.copyfail': '無法存取剪貼簿 — 時間軸仍然保存在這裡。',
+      'cap.dropped': '時間軸已刪除。'
     },
 
     'zh-Hans': {
@@ -330,7 +363,18 @@
       'rec.net': '由 YouTube 流式播放，需要网络。这里不储存任何文件。',
       'rec.error': '无法载入录音。请检查网络，或用 \u2190 \u2192 自行前进。',
       'rec.edited': '您修改了文字，录音已无法对齐。',
-      'rec.local': '录音需要在线版本的页面 — 直接打开文件时无法控制播放器。'
+      'rec.local': '录音需要在线版本的页面 — 直接打开文件时无法控制播放器。',
+      'cap.start': '跟着敲打，记录时间轴',
+      'cap.copy': '复制这份时间轴',
+      'cap.drop': '删除这份时间轴',
+      'cap.mark': '标记',
+      'cap.mine': '您自己的时间轴',
+      'cap.hint': '每一行开始的瞬间按下「标记」。上一句可以取消刚才的标记。',
+      'cap.left': '行待标记',
+      'cap.saved': '时间轴已保存在这台设备上。',
+      'cap.copied': '已复制。粘贴进 js/data.js，大家就都能用。',
+      'cap.copyfail': '无法访问剪贴板 — 时间轴仍然保存在这里。',
+      'cap.dropped': '时间轴已删除。'
     }
   };
 

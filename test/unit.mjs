@@ -376,5 +376,37 @@ console.log('\nRecordings and cue lookup');
        .filter(f => !String(f).startsWith('.git') && /\.(mp3|m4a|wav|ogg|opus|mp4|webm)$/i.test(String(f))), []);
 }
 
+console.log('\nTimings tapped in by hand');
+{
+  const b = M.media.buildCues;
+
+  eq('each line ends where the next begins', b([1, 4, 7, 10]),
+     [[1, 4], [4, 7], [7, 10], [10, 13]]);
+  eq('the last line gets the typical length, not an invented number',
+     b([0, 10, 20, 24])[3], [24, 34]);   // gaps 10,10,4 → median 10
+  eq('marks out of order are sorted', b([7, 1, 4])[0], [1, 4]);
+  eq('a double tap does not make a line that ends before it starts',
+     b([1, 1, 1, 5]), [[1, 5], [5, 9]]);
+  eq('no marks, no cues', b([]), []);
+  eq('null is not a crash', b(null), []);
+  eq('rubbish marks are dropped', b([1, NaN, -3, 'x', 4]), [[1, 4], [4, 7]]);
+  eq('a single mark still yields a usable pair', b([12]), [[12, 15]]);
+  eq('times are rounded, not left at float noise',
+     b([0.1 + 0.2, 1.005])[0][0], 0.3);
+  eq('every built cue runs forward',
+     b([3, 9, 11, 30, 31]).every(c => c[1] > c[0]), true);
+
+  /* Whatever comes out has to be pasteable into data.js unchanged. */
+  const src = M.media.cuesToSource(b([1, 4, 7]));
+  eq('export opens with the data.js key', src.startsWith('    cues: ['), true, src);
+  eq('export closes with a comma so it drops into the object',
+     src.trim().endsWith('],'), true, src);
+  const back = new Function('return [' + src.replace('    cues: [', '').replace(/\],$/, '') + ']')();
+  eq('export round-trips back to the same numbers', back, b([1, 4, 7]));
+
+  eq('captured timings never overwrite a committed one',
+     M.TEXTS.filter(t => t.cues).map(t => t.id), ['shurangama']);
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

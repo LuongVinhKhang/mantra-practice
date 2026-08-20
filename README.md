@@ -260,8 +260,8 @@ Three of the texts carry a recording — the video each one was transcribed from
 
 | Text | Channel | Sync |
 | --- | --- | --- |
-| 文殊菩薩祈請文 | Sorrowless State | plays alongside |
-| 二十一度母讚 | Sorrowless State | plays alongside |
+| 文殊菩薩祈請文 | Sorrowless State | tap the timings in |
+| 二十一度母讚 | Sorrowless State | tap the timings in |
 | 楞嚴咒 | 見睹法師弘法梵音輯 | **141 lines, timed** |
 
 Tick **Practise with the recording** on the home screen. Where the video has
@@ -295,6 +295,28 @@ are silently dropped, so the starting point rides on the video itself (the
 `start` player var) rather than a `seekTo` — otherwise the screen would sit on
 line 1 until the real recording caught up. The screen simply waits, showing the
 first line, until the reciter reaches it.
+
+### Tapping timings in
+
+Only 楞嚴咒 ships with timings, because only its video has a caption track.
+The other two have none at all — no manual captions, no auto-generated ones
+(YouTube's speech recognition does not run on chanting), no timestamps in the
+description, no chapters. Rather than invent timings — a wrong one shows the
+wrong words while you chant — the app lets you record the real ones:
+
+**Record the timings by tapping along** plays the recording from the top and
+shows one line at a time. Press **Mark** the moment each line begins. **Back**
+undoes the mark you just made, so one late tap does not cost the whole pass.
+The times come from the recording's own clock, so pausing, buffering or an
+advert cannot skew them.
+
+At the end the timings are saved on your device and that recording syncs from
+then on, exactly like a committed one. **Copy these timings** puts the block
+below on your clipboard so it can be pasted into `js/data.js` and shared with
+everyone; **Delete these timings** starts over.
+
+Walking out half way saves nothing — partial timings would run out mid-text
+and leave the screen stuck.
 
 ### Rebuilding the timings
 
